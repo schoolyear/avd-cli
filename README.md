@@ -1,7 +1,5 @@
 # AVD command line tool
 
-This folder contains a command line tool for building images for AVD.
+A command line tool for building images in AVD.
 
-## Usage
-
-*todo*
+Documentation can be found here: https://avd.schoolyear.com

@@ -3,8 +3,8 @@ package commands
 import (
 	"fmt"
 	"github.com/friendsofgo/errors"
-	"github.com/schoolyear/secure-apps-scripts/avd/cli/embeddedfiles"
-	"github.com/schoolyear/secure-apps-scripts/avd/cli/lib"
+	"github.com/schoolyear/avd-cli/embeddedfiles"
+	"github.com/schoolyear/avd-cli/lib"
 	"github.com/urfave/cli/v2"
 	"io/fs"
 	"os"

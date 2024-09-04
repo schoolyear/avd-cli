@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	"github.com/friendsofgo/errors"
-	"github.com/go-ozzo/ozzo-validation/v4"
-	"github.com/schoolyear/secure-apps-scripts/avd/cli/commands"
+	validation "github.com/go-ozzo/ozzo-validation/v4"
+	"github.com/schoolyear/avd-cli/commands"
 	"github.com/urfave/cli/v2"
 	"os"
 	"time"

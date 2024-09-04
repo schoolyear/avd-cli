@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/virtualmachineimagebuilder/armvirtualmachineimagebuilder"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
-	"github.com/schoolyear/secure-apps-scripts/avd/cli/lib"
+	"github.com/schoolyear/avd-cli/lib"
 	"regexp"
 )
 

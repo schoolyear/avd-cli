@@ -17,7 +17,7 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/joho/godotenv"
 	"github.com/schollz/progressbar/v3"
-	"github.com/schoolyear/secure-apps-scripts/avd/cli/schema"
+	"github.com/schoolyear/avd-cli/schema"
 	"github.com/urfave/cli/v2"
 	"io"
 	"io/fs"
