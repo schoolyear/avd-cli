@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/friendsofgo/errors"
-	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/schoolyear/avd-cli/commands"
 	"github.com/urfave/cli/v2"
 	"os"
@@ -33,17 +31,7 @@ func main() {
 				},
 			},
 		},
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:    "deployment",
-				Value:   "prod",
-				Usage:   "Schoolyear deployment: dev/testing/beta/prod",
-				Aliases: []string{"d"},
-				Action: func(ctx *cli.Context, value string) error {
-					return errors.Wrap(validation.Validate(value, validation.Required, validation.In("dev", "testing", "beta", "prod")), "invalid deployment flag")
-				},
-			},
-		},
+		Flags:                []cli.Flag{},
 		EnableBashCompletion: true,
 		Compiled:             time.Time{},
 		Authors: []*cli.Author{
