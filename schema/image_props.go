@@ -9,8 +9,8 @@ import (
 )
 
 type ImageProperties struct {
-	PlaceholderProperties PlaceholderProperties                                              `json:"placeholderProperties"`
-	ImageTemplate         lib.JSON5Unsupported[*armvirtualmachineimagebuilder.ImageTemplate] `json:"imageTemplate"`
+	PlaceholderProperties PlaceholderProperties                                             `json:"placeholderProperties"`
+	ImageTemplate         lib.JSON5Unsupported[armvirtualmachineimagebuilder.ImageTemplate] `json:"imageTemplate"`
 }
 
 func (i ImageProperties) Validate() error {

@@ -89,7 +89,7 @@ func findJSONOrJSON5Path(searchFs fs.FS, name string) (path string, json5 bool, 
 }
 
 // JSON5Unsupported can be wrapped around objects with a custom unmarshaler that does not support json5
-type JSON5Unsupported[T json.Unmarshaler] struct{ V T }
+type JSON5Unsupported[T any] struct{ V T }
 
 func (j JSON5Unsupported[T]) MarshalJSON() ([]byte, error) {
 	return json.Marshal(j.V)

@@ -282,7 +282,7 @@ func scanPackagePath(packageFs fs.FS, envFiles []string, resolveInteractively bo
 	return imageProperties, hash.Sum(nil), nil
 }
 
-func replaceSourceURIPlaceholder(imageTemplate *armvirtualmachineimagebuilder.ImageTemplate, resourcesURI *storageAccountBlob) error {
+func replaceSourceURIPlaceholder(imageTemplate armvirtualmachineimagebuilder.ImageTemplate, resourcesURI *storageAccountBlob) error {
 	var fileCustomizersWithPlaceholders []*armvirtualmachineimagebuilder.ImageTemplateFileCustomizer
 	if imageTemplate.Properties != nil {
 		for _, step := range imageTemplate.Properties.Customize {
@@ -453,7 +453,7 @@ func createImageTemplate(ctx context.Context, imageTemplateClient *armvirtualmac
 		ctx,
 		resourceGroup,
 		imageTemplateName,
-		*imageProperties.ImageTemplate.V,
+		imageProperties.ImageTemplate.V,
 		nil,
 	)
 	if err != nil {
