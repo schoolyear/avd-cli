@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"math"
 	"os"
-	"path/filepath"
+	"path"
 	"regexp"
 	"slices"
 	"strconv"
@@ -48,7 +48,7 @@ func MergeDirectoryLayers(layers []fs.FS, basePath string) (fileMappings []FileM
 		for _, entry := range entries {
 			entryName := entry.Name()
 			isDir := entry.IsDir()
-			sourcePath := filepath.Join(basePath, entryName)
+			sourcePath := path.Join(basePath, entryName)
 			normalizedName, targetName, orderingIndex, entryOrderingType := normalizeEntryName(entryName, isDir)
 
 			entryInfo, err := entry.Info()
@@ -79,7 +79,7 @@ func MergeDirectoryLayers(layers []fs.FS, basePath string) (fileMappings []FileM
 	}
 
 	for normalizedName, entries := range entriesByNormalizedName {
-		normalizedFullPath := filepath.Join(basePath, normalizedName.name)
+		normalizedFullPath := path.Join(basePath, normalizedName.name)
 
 		dirIndexes, fileIndexes := checkPathEntryTypes(entries)
 		if len(dirIndexes) == 0 {
@@ -295,10 +295,10 @@ func mapOrderedFiles(entries []layerEntry, orderIndexStart int, indexLength uint
 
 	for i, entry := range entries {
 		orderIndex := orderIndexStart + i
-		dirPath := filepath.Dir(entry.sourcePath)
+		dirPath := path.Dir(entry.sourcePath)
 		filename := fmt.Sprintf(filenameFormat, orderIndex, entry.targetName)
 
-		mappings[i] = entry.toFileMapping(filepath.Join(dirPath, filename))
+		mappings[i] = entry.toFileMapping(path.Join(dirPath, filename))
 	}
 	return mappings
 }
