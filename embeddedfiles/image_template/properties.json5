@@ -1,3 +1,6 @@
 {
+  placeholderProperties: {
+    whitelistedHost: {}
+  },
   imageTemplate: {}
 }

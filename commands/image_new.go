@@ -16,10 +16,10 @@ var ImageNewCommand = &cli.Command{
 	Usage: "create a new image folder structure",
 	Flags: []cli.Flag{
 		&cli.PathFlag{
-			Name:    "output",
-			Value:   "./",
-			Usage:   "Path in which the new image folder should be created",
-			Aliases: []string{"o"},
+			Name:     "output",
+			Required: true,
+			Usage:    "Path in which the new image folder should be created",
+			Aliases:  []string{"o"},
 		},
 	},
 	Action: func(c *cli.Context) error {
