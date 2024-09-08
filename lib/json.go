@@ -10,35 +10,44 @@ import (
 	"os"
 )
 
+func UnmarshalJSONorJSON5File[T any](searchFs fs.FS, name string) (out *T, cleanJSON []byte, err error) {
+	data, isJSON5, err := ReadJSONOrJSON5File(searchFs, name)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if isJSON5 {
+		data = jsonc.New().Strip(data)
+	}
+
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil, nil, errors.Wrap(err, "failed to parse json file")
+	}
+
+	return out, data, nil
+}
+
 // ReadJSONOrJSON5File reads either the json or json5 file
 // returns an error if both are found
 // returns os.ErrNotExist if neither are found
-func ReadJSONOrJSON5File[T any](searchFs fs.FS, name string) (out *T, cleanJSON []byte, err error) {
+func ReadJSONOrJSON5File(searchFs fs.FS, name string) (data []byte, isJSON5 bool, err error) {
 	path, isJSON5, err := findJSONOrJSON5Path(searchFs, name)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to find either json or json5 path")
+		return nil, false, errors.Wrap(err, "failed to find either json or json5 path")
 	}
 
 	f, err := searchFs.Open(path)
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "failed to open file %s", path)
+		return nil, false, errors.Wrapf(err, "failed to open file %s", path)
 	}
 	defer f.Close()
 
-	jsonBytes, err := io.ReadAll(f)
+	data, err = io.ReadAll(f)
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "failed to read json file %s", path)
+		return nil, false, errors.Wrapf(err, "failed to read json file %s", path)
 	}
 
-	if isJSON5 {
-		jsonBytes = jsonc.New().Strip(jsonBytes)
-	}
-
-	if err := json.Unmarshal(jsonBytes, &out); err != nil {
-		return nil, nil, errors.Wrap(err, "failed to parse json file")
-	}
-
-	return out, jsonBytes, nil
+	return data, isJSON5, nil
 }
 
 // findJSONOrJSON5Path tries both the .json and .json5 extension

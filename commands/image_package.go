@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/adhocore/jsonc"
 	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/friendsofgo/errors"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
@@ -72,7 +73,7 @@ var ImagePackage = &cli.Command{
 			return err
 		}
 
-		// check each layer
+		// scan each layer path
 		layers := make([]layerProps, len(layerPaths))
 		for i, layerPath := range layerPaths {
 			layerFs := os.DirFS(layerPath)
@@ -104,11 +105,22 @@ var ImagePackage = &cli.Command{
 			return errors.Wrap(err, "failed to print layers")
 		}
 
+		layerWithDeploymentTemplateIdx, err := ensureSingleDeploymentTemplate(layers)
+		if err != nil {
+			return errors.Wrap(err, "no single deployment template defined")
+		}
+
 		fmt.Println("Merging image properties")
 		imageProperties, err := mergeImageProperties(layers)
 		if err != nil {
 			return errors.Wrap(err, "failed to merge image property documents")
 		}
+
+		fmt.Println("Resolving deployment template placeholders")
+		deploymentTemplateJSON := resolveDeploymentTemplateProperties(
+			imageProperties,
+			layers[layerWithDeploymentTemplateIdx].deploymentTemplateJSONClean,
+		)
 
 		fmt.Println("Merging build steps")
 		buildSteps := mergeBuildStepConfigs(layers)
@@ -152,7 +164,7 @@ var ImagePackage = &cli.Command{
 
 		fmt.Println("Writing the image building package")
 		fullOutputPath := filepath.Join(cwd, outputPath)
-		if err := writeImageBuildingPackage(fullOutputPath, layers, imageProperties, buildSteps, resourceFileMappings, overwriteOutput); err != nil {
+		if err := writeImageBuildingPackage(fullOutputPath, layers, imageProperties, deploymentTemplateJSON, buildSteps, resourceFileMappings, overwriteOutput); err != nil {
 			return errors.Wrap(err, "failed to write image building package")
 		}
 
@@ -174,17 +186,23 @@ type layerScanResult struct {
 	cleanPropertiesJSON []byte
 	properties          *schema.ImageProperties
 
+	deploymentTemplateJSONRaw   []byte
+	deploymentTemplateIsJSON5   bool
+	deploymentTemplateJSONClean []byte
+
 	buildStepsConfig   *schema.BuildStepsConfig
 	hasResourcesFolder bool
 	resourcesSize      int64 // 0, if hasResourcesFolder = false
 }
 
 const (
-	imagePropertiesFilename          = "properties"
-	imagePropertiesFileWithExtension = imagePropertiesFilename + ".json"
-	buildStepsFileName               = "build_steps"
-	resourcesDirName                 = "resources"
-	resourcesArchiveName             = resourcesDirName + ".zip"
+	imagePropertiesFilename             = "properties"
+	imagePropertiesFileWithExtension    = imagePropertiesFilename + ".json"
+	deploymentTemplateFilename          = "deployment_template"
+	deploymentTemplateFileWithExtension = "deployment_template.json"
+	buildStepsFileName                  = "build_steps"
+	resourcesDirName                    = "resources"
+	resourcesArchiveName                = resourcesDirName + ".zip"
 )
 
 func resolveAbsoluteLayerPaths(cwd string, layerPaths []string) ([]string, error) {
@@ -217,14 +235,24 @@ func ensureLayerPathsExist(layerPaths []string) error {
 }
 
 func scanLayerPath(layerFs fs.FS) (layer layerScanResult, err error) {
-	props, propsJSON, err := lib.ReadJSONOrJSON5File[schema.ImageProperties](layerFs, imagePropertiesFilename)
+	props, propsJSON, err := lib.UnmarshalJSONorJSON5File[schema.ImageProperties](layerFs, imagePropertiesFilename)
 	if err != nil && !errors.Is(err, os.ErrNotExist) { // ok if the file does not exist
 		return layer, errors.Wrap(err, "failed to read properties file")
 	}
 	layer.properties = props
 	layer.cleanPropertiesJSON = propsJSON
 
-	buildSteps, _, err := lib.ReadJSONOrJSON5File[schema.BuildStepsConfig](layerFs, buildStepsFileName)
+	layer.deploymentTemplateJSONRaw, layer.deploymentTemplateIsJSON5, err = lib.ReadJSONOrJSON5File(layerFs, deploymentTemplateFilename)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return layer, errors.Wrap(err, "failed to read deployment template file")
+	}
+	if layer.deploymentTemplateIsJSON5 {
+		layer.deploymentTemplateJSONClean = jsonc.New().Strip(layer.deploymentTemplateJSONRaw)
+	} else {
+		layer.deploymentTemplateJSONClean = layer.deploymentTemplateJSONRaw
+	}
+
+	buildSteps, _, err := lib.UnmarshalJSONorJSON5File[schema.BuildStepsConfig](layerFs, buildStepsFileName)
 	if err != nil && !errors.Is(err, os.ErrNotExist) { // ok if the file does not exist
 		return layer, errors.Wrap(err, "failed to read build_steps file")
 	}
@@ -256,7 +284,7 @@ func scanLayerPath(layerFs fs.FS) (layer layerScanResult, err error) {
 func printLayers(layers []layerProps) error {
 	fmt.Println("Merging the following layers")
 	for i, layer := range layers {
-		buildStepsCount := "not configured"
+		buildStepsCount := "non configured"
 		if layer.buildStepsConfig != nil {
 			buildStepsCount = strconv.Itoa(layer.buildStepsConfig.TotalCount())
 		}
@@ -266,10 +294,11 @@ func printLayers(layers []layerProps) error {
 			resourcesSize = bytesize.New(float64(layer.resourcesSize)).String()
 		}
 
-		fmt.Printf("\t(%d) %s\n\t\thas properties: %v, build_steps: %s, resources: %s\n",
+		fmt.Printf("\t(%d) %s\n\t\thas properties: %v, has deployment template: %v, build_steps: %s, resources: %s\n",
 			i+1,
 			layer.basePath,
 			layer.properties != nil,
+			layer.deploymentTemplateJSONRaw != nil,
 			buildStepsCount,
 			resourcesSize,
 		)
@@ -277,6 +306,24 @@ func printLayers(layers []layerProps) error {
 	fmt.Println()
 
 	return nil
+}
+
+func ensureSingleDeploymentTemplate(layers []layerProps) (layerIdx int, err error) {
+	layerIdx = -1
+	for i, layer := range layers {
+		if layer.deploymentTemplateJSONRaw != nil {
+			if layerIdx > 0 {
+				return layerIdx, errors.New("multiple layers have a deployment template defined")
+			}
+			layerIdx = i
+		}
+	}
+
+	if layerIdx == -1 {
+		return -1, errors.New("no layer defines a deployment template")
+	}
+
+	return layerIdx, nil
 }
 
 func mergeImageProperties(layers []layerProps) (*schema.ImageProperties, error) {
@@ -303,6 +350,12 @@ func mergeImageProperties(layers []layerProps) (*schema.ImageProperties, error) 
 	}
 
 	return &props, nil
+}
+
+func resolveDeploymentTemplateProperties(properties *schema.ImageProperties, deploymentTemplateJSONRaw []byte) []byte {
+	return schema.ReplacePlaceholders(deploymentTemplateJSONRaw, map[string]string{
+		schema.BuiltInSessionHostProxyWhitelistPlaceholder: properties.WhitelistedHosts.KeyString(),
+	}, schema.BuiltInPlaceholder)
 }
 
 func mergeBuildStepConfigs(layers []layerProps) schema.BuildSteps {
@@ -369,7 +422,7 @@ func mergeResourcesDir(layers []layerProps) ([]lib.FileMapping, error) {
 	return fileMappings, nil
 }
 
-func writeImageBuildingPackage(outputPath string, layers []layerProps, imageProperties *schema.ImageProperties, buildSteps schema.BuildSteps, resourceFileMappings []lib.FileMapping, overwriteOutputDir bool) error {
+func writeImageBuildingPackage(outputPath string, layers []layerProps, imageProperties *schema.ImageProperties, deploymentTemplateJSON []byte, buildSteps schema.BuildSteps, resourceFileMappings []lib.FileMapping, overwriteOutputDir bool) error {
 	if err := lib.EnsureEmptyDirectory(outputPath, overwriteOutputDir); err != nil {
 		return errors.Wrap(err, "failed to create output directory")
 	}
@@ -377,9 +430,13 @@ func writeImageBuildingPackage(outputPath string, layers []layerProps, imageProp
 	// we don't know the length of the image properties json yet, so we do an estimation
 	const imagePropertiesJSONSizeEstimate = 2000
 	bar := progressbar.DefaultBytes(
-		int64(imagePropertiesJSONSizeEstimate)+calcFileMappingsTotalSize(resourceFileMappings),
+		int64(len(deploymentTemplateJSON))+int64(imagePropertiesJSONSizeEstimate)+calcFileMappingsTotalSize(resourceFileMappings),
 		"Creating resources archive",
 	)
+
+	if err := createAndWriteFile(filepath.Join(outputPath, deploymentTemplateFileWithExtension), deploymentTemplateJSON, bar); err != nil {
+		return errors.Wrap(err, "failed to write deployment template")
+	}
 
 	resourcesArchivePath := filepath.Join(outputPath, resourcesArchiveName)
 	resourcesSha256Checksum, err := writeResourcesArchive(resourcesArchivePath, layers, resourceFileMappings, bar)

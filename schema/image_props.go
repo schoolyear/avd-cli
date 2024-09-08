@@ -6,27 +6,51 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/schoolyear/avd-cli/lib"
 	"regexp"
+	"strings"
 )
 
 type ImageProperties struct {
-	PlaceholderProperties PlaceholderProperties                                             `json:"placeholderProperties"`
+	PlaceholderProperties PlaceholderProperties                                             `json:"placeholderProperties,omitempty"`
+	WhitelistedHosts      WhitelistedHosts                                                  `json:"whitelistedHosts"`
 	ImageTemplate         lib.JSON5Unsupported[armvirtualmachineimagebuilder.ImageTemplate] `json:"imageTemplate"`
 }
 
 func (i ImageProperties) Validate() error {
 	return validation.ValidateStruct(&i,
 		validation.Field(&i.PlaceholderProperties, validation.Length(0, 50)),
+		validation.Field(&i.WhitelistedHosts, validation.Length(0, 75)),
 		validation.Field(&i.ImageTemplate, validation.Required),
 	)
 }
 
 type PlaceholderProperties map[string]json.RawMessage
 
+type WhitelistedHosts map[string]struct{}
+
+func (w WhitelistedHosts) KeyString() string {
+	builder := strings.Builder{}
+	first := true
+	for host := range w {
+		if !first {
+			builder.WriteString(",")
+		} else {
+			first = false
+		}
+		builder.WriteString(host)
+	}
+	return builder.String()
+}
+
 type PlaceholderType string
 
 const (
 	PropertiesPlaceholder PlaceholderType = "props"
 	ParameterPlaceholder  PlaceholderType = "param"
+	BuiltInPlaceholder    PlaceholderType = "builtin"
+)
+
+const (
+	BuiltInSessionHostProxyWhitelistPlaceholder string = "sessionHostProxyWhitelist"
 )
 
 var placeholderRegex = regexp.MustCompile(`\[{3}([a-zA-Z0-9_]+):([a-zA-Z0-9_]+)]{3}`)
