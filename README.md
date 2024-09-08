@@ -7,4 +7,6 @@
 
 A command line tool for building images in AVD.
 
+Download the latest version [here](https://github.com/schoolyear/avd-cli/releases).
+
 Documentation can be found here: https://avd.schoolyear.com
