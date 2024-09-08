@@ -1,12 +1,9 @@
 # AVD CLI
 
 ![Static Badge](https://img.shields.io/badge/staticcheck-passes-green)
-![Static Badge](https://img.shields.io/badge/Windows-amd64-blue)
-![Static Badge](https://img.shields.io/badge/Windows-arm64-blue)
-![Static Badge](https://img.shields.io/badge/macOS-intel-blue)
-![Static Badge](https://img.shields.io/badge/macOS-silicon-blue)
-![Static Badge](https://img.shields.io/badge/linux-amd64-blue)
-![Static Badge](https://img.shields.io/badge/linux-arm64-blue)
+![Static Badge](https://img.shields.io/badge/Windows-amd64+arm64-blue)
+![Static Badge](https://img.shields.io/badge/macOS-intel+silicon-blue)
+![Static Badge](https://img.shields.io/badge/linux-amd64+arm64-blue)
 
 A command line tool for building images in AVD.
 
