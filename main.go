@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-const (
-	Version = "0.0.0"
+var (
+	Version = "v0.0.0"
 )
 
 func main() {
