@@ -8,11 +8,15 @@ import (
 	"time"
 )
 
+const (
+	Version = "0.0.0"
+)
+
 func main() {
 	app := &cli.App{
 		Name:    "avdcli",
 		Usage:   "managed you AVD deployment",
-		Version: "1.87.1",
+		Version: Version,
 		Suggest: true,
 		Commands: cli.Commands{
 			{
