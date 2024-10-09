@@ -81,7 +81,6 @@ var PackageDeployCommand = &cli.Command{
 			Usage:     "Paths to .env files to resolve package parameters from",
 			Aliases:   []string{"e"},
 			TakesFile: true,
-			Value:     cli.NewStringSlice(".env", ".env.local"),
 		},
 		&cli.BoolFlag{
 			Name:    "resolve-interactively",
