@@ -25,6 +25,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -335,6 +336,9 @@ func resolveParameters(envFiles []string, params map[string]struct{}, resolveInt
 		if !resolveInteractively {
 			return nil, errors.New("could not resolve all parameters, interactivity is disabled")
 		}
+
+		// make sure the params are always requested in specific order
+		slices.Sort(unresolvedParams)
 
 		fmt.Printf("Resolving %d parameter(s) interactively:\n", len(unresolvedParams))
 
