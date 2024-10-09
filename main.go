@@ -14,7 +14,7 @@ var (
 
 func main() {
 	app := &cli.App{
-		Name:    "avdcli",
+		Name:    "avd-cli",
 		Usage:   "managed you AVD deployment",
 		Version: Version,
 		Suggest: true,
