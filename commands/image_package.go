@@ -7,6 +7,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/adhocore/jsonc"
 	jsonpatch "github.com/evanphx/json-patch/v5"
@@ -17,11 +24,6 @@ import (
 	"github.com/schoolyear/avd-cli/lib"
 	"github.com/schoolyear/avd-cli/schema"
 	"github.com/urfave/cli/v2"
-	"io"
-	"io/fs"
-	"os"
-	"path/filepath"
-	"strconv"
 )
 
 var ImagePackage = &cli.Command{
@@ -37,6 +39,13 @@ var ImagePackage = &cli.Command{
 			Required:    true,
 			TakesFile:   true,
 			Aliases:     []string{"l"},
+		},
+		&cli.PathFlag{
+			Name:      "deployment-template",
+			Usage:     "Path to the deployment template",
+			Required:  true,
+			TakesFile: true,
+			Aliases:   []string{"dt"},
 		},
 		&cli.PathFlag{
 			Name:    "output",
@@ -73,6 +82,11 @@ var ImagePackage = &cli.Command{
 			return err
 		}
 
+		deploymentTemplateJson, err := loadDeploymentTemplate(c.String("deployment-template"))
+		if err != nil {
+			return err
+		}
+
 		// scan each layer path
 		layers := make([]layerProps, len(layerPaths))
 		for i, layerPath := range layerPaths {
@@ -105,11 +119,6 @@ var ImagePackage = &cli.Command{
 			return errors.Wrap(err, "failed to print layers")
 		}
 
-		layerWithDeploymentTemplateIdx, err := ensureSingleDeploymentTemplate(layers)
-		if err != nil {
-			return errors.Wrap(err, "no single deployment template defined")
-		}
-
 		fmt.Println("Merging image properties")
 		imageProperties, err := mergeImageProperties(layers)
 		if err != nil {
@@ -119,7 +128,7 @@ var ImagePackage = &cli.Command{
 		fmt.Println("Resolving deployment template placeholders")
 		deploymentTemplateJSON := resolveDeploymentTemplateProperties(
 			imageProperties,
-			layers[layerWithDeploymentTemplateIdx].deploymentTemplateJSONClean,
+			deploymentTemplateJson,
 		)
 
 		fmt.Println("Merging build steps")
@@ -186,10 +195,6 @@ type layerScanResult struct {
 	cleanPropertiesJSON []byte
 	properties          *schema.ImageProperties
 
-	deploymentTemplateJSONRaw   []byte
-	deploymentTemplateIsJSON5   bool
-	deploymentTemplateJSONClean []byte
-
 	buildStepsConfig   *schema.BuildStepsConfig
 	hasResourcesFolder bool
 	resourcesSize      int64 // 0, if hasResourcesFolder = false
@@ -234,6 +239,24 @@ func ensureLayerPathsExist(layerPaths []string) error {
 	return nil
 }
 
+// loadDeploymentTemplate loads the deployment template
+// verifies that it exists and that it is valid json
+// cleans and returns it
+func loadDeploymentTemplate(templatePath string) ([]byte, error) {
+	templateDir := filepath.Dir(templatePath)
+	templateFilename := strings.Split(filepath.Base(templatePath), ".")[0]
+
+	deploymentTemplateJson, isJSON5, err := lib.ReadJSONOrJSON5File(os.DirFS(templateDir), templateFilename)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read json file")
+	}
+	if isJSON5 {
+		return nil, errors.New("deployment template is JSON5 instead of JSON")
+	}
+
+	return jsonc.New().Strip(deploymentTemplateJson), nil
+}
+
 func scanLayerPath(layerFs fs.FS) (layer layerScanResult, err error) {
 	props, propsJSON, err := lib.UnmarshalJSONorJSON5File[schema.ImageProperties](layerFs, imagePropertiesFilename)
 	if err != nil && !errors.Is(err, os.ErrNotExist) { // ok if the file does not exist
@@ -241,16 +264,6 @@ func scanLayerPath(layerFs fs.FS) (layer layerScanResult, err error) {
 	}
 	layer.properties = props
 	layer.cleanPropertiesJSON = propsJSON
-
-	layer.deploymentTemplateJSONRaw, layer.deploymentTemplateIsJSON5, err = lib.ReadJSONOrJSON5File(layerFs, deploymentTemplateFilename)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return layer, errors.Wrap(err, "failed to read deployment template file")
-	}
-	if layer.deploymentTemplateIsJSON5 {
-		layer.deploymentTemplateJSONClean = jsonc.New().Strip(layer.deploymentTemplateJSONRaw)
-	} else {
-		layer.deploymentTemplateJSONClean = layer.deploymentTemplateJSONRaw
-	}
 
 	buildSteps, _, err := lib.UnmarshalJSONorJSON5File[schema.BuildStepsConfig](layerFs, buildStepsFileName)
 	if err != nil && !errors.Is(err, os.ErrNotExist) { // ok if the file does not exist
@@ -294,11 +307,10 @@ func printLayers(layers []layerProps) error {
 			resourcesSize = bytesize.New(float64(layer.resourcesSize)).String()
 		}
 
-		fmt.Printf("\t(%d) %s\n\t\thas properties: %v, has deployment template: %v, build_steps: %s, resources: %s\n",
+		fmt.Printf("\t(%d) %s\n\t\thas properties: %v, build_steps: %s, resources: %s\n",
 			i+1,
 			layer.basePath,
 			layer.properties != nil,
-			layer.deploymentTemplateJSONRaw != nil,
 			buildStepsCount,
 			resourcesSize,
 		)
@@ -306,24 +318,6 @@ func printLayers(layers []layerProps) error {
 	fmt.Println()
 
 	return nil
-}
-
-func ensureSingleDeploymentTemplate(layers []layerProps) (layerIdx int, err error) {
-	layerIdx = -1
-	for i, layer := range layers {
-		if layer.deploymentTemplateJSONRaw != nil {
-			if layerIdx > 0 {
-				return layerIdx, errors.New("multiple layers have a deployment template defined")
-			}
-			layerIdx = i
-		}
-	}
-
-	if layerIdx == -1 {
-		return -1, errors.New("no layer defines a deployment template")
-	}
-
-	return layerIdx, nil
 }
 
 func mergeImageProperties(layers []layerProps) (*schema.ImageProperties, error) {
