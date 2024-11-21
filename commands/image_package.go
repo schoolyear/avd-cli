@@ -3,6 +3,7 @@ package commands
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -40,12 +41,11 @@ var ImagePackage = &cli.Command{
 			TakesFile:   true,
 			Aliases:     []string{"l"},
 		},
-		&cli.PathFlag{
-			Name:      "deployment-template",
-			Usage:     "Path to the deployment template",
-			Required:  true,
-			TakesFile: true,
-			Aliases:   []string{"dt"},
+		&cli.StringFlag{
+			Name:     "deployment-template",
+			Usage:    "Path or url to the deployment template",
+			Required: true,
+			Aliases:  []string{"dt"},
 		},
 		&cli.PathFlag{
 			Name:    "output",
@@ -239,19 +239,34 @@ func ensureLayerPathsExist(layerPaths []string) error {
 	return nil
 }
 
-// loadDeploymentTemplate loads the deployment template
+// loadDeploymentTemplate either:
+// 1) Downloads the deployment template if the templatePath starts with 'http' or 'https'
+// or
+// 2) loads the deployment template from disk,
 // verifies that it exists and that it is valid json
 // cleans and returns it
 func loadDeploymentTemplate(templatePath string) ([]byte, error) {
-	templateDir := filepath.Dir(templatePath)
-	templateFilename := strings.Split(filepath.Base(templatePath), ".")[0]
+	var (
+		deploymentTemplateJson []byte
+		isJSON5                bool
+		err                    error
+	)
+	if strings.HasPrefix(templatePath, "http://") || strings.HasPrefix(templatePath, "https://") {
+		deploymentTemplateJson, err = lib.DownloadFile(context.Background(), templatePath)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to download file")
+		}
+	} else {
+		templateDir := filepath.Dir(templatePath)
+		templateFilename := strings.Split(filepath.Base(templatePath), ".")[0]
 
-	deploymentTemplateJson, isJSON5, err := lib.ReadJSONOrJSON5File(os.DirFS(templateDir), templateFilename)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to read json file")
-	}
-	if isJSON5 {
-		return nil, errors.New("deployment template is JSON5 instead of JSON")
+		deploymentTemplateJson, isJSON5, err = lib.ReadJSONOrJSON5File(os.DirFS(templateDir), templateFilename)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to read json file")
+		}
+		if isJSON5 {
+			return nil, errors.New("deployment template is JSON5 instead of JSON")
+		}
 	}
 
 	return jsonc.New().Strip(deploymentTemplateJson), nil
