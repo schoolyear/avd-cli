@@ -42,10 +42,10 @@ var ImagePackage = &cli.Command{
 			Aliases:     []string{"l"},
 		},
 		&cli.StringFlag{
-			Name:     "deployment-template",
-			Usage:    "Path or url to the deployment template",
-			Required: true,
-			Aliases:  []string{"dt"},
+			Name:    "deployment-template",
+			Usage:   "Path or url to the deployment template",
+			Value:   "https://github.com/schoolyear/avd-deployments/releases/latest/download/main.json",
+			Aliases: []string{"dt"},
 		},
 		&cli.PathFlag{
 			Name:    "output",
