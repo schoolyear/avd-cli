@@ -5,7 +5,6 @@ import (
 	"github.com/schoolyear/avd-cli/commands"
 	"github.com/urfave/cli/v2"
 	"os"
-	"time"
 )
 
 var (
@@ -14,8 +13,10 @@ var (
 
 func main() {
 	app := &cli.App{
-		Name:    "avd-cli",
-		Usage:   "managed you AVD deployment",
+		Name:  "avdcli",
+		Usage: "manage your AVD deployment",
+		Description: `This tool helps you manage your exam-ready images.
+Visit https://avd.schoolyear.com for more information on how to use this tool.`,
 		Version: Version,
 		Suggest: true,
 		Commands: cli.Commands{
@@ -35,9 +36,7 @@ func main() {
 				},
 			},
 		},
-		Flags:                []cli.Flag{},
 		EnableBashCompletion: true,
-		Compiled:             time.Time{},
 		Authors: []*cli.Author{
 			{
 				Name:  "Schoolyear",

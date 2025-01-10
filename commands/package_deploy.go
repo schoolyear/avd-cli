@@ -75,7 +75,7 @@ var PackageDeployCommand = &cli.Command{
 		},
 		&cli.DurationFlag{
 			Name:  "timeout",
-			Usage: "Set after how much time the command should timeout. Especially useful in combination with \"-wait\"",
+			Usage: "Set after how much time the command should timeout. Especially useful in combination with \"-wait\". Valid time units are \"ns\", \"us\" (or \"µs\"), \"ms\", \"s\", \"m\", \"h\", which you can combine like this \"1h30m\"",
 		},
 		&cli.StringSliceFlag{
 			Name:      "env",
