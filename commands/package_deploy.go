@@ -25,6 +25,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -81,7 +82,6 @@ var PackageDeployCommand = &cli.Command{
 			Usage:     "Paths to .env files to resolve package parameters from",
 			Aliases:   []string{"e"},
 			TakesFile: true,
-			Value:     cli.NewStringSlice(".env", ".env.local"),
 		},
 		&cli.BoolFlag{
 			Name:    "resolve-interactively",
@@ -336,6 +336,9 @@ func resolveParameters(envFiles []string, params map[string]struct{}, resolveInt
 		if !resolveInteractively {
 			return nil, errors.New("could not resolve all parameters, interactivity is disabled")
 		}
+
+		// make sure the params are always requested in specific order
+		slices.Sort(unresolvedParams)
 
 		fmt.Printf("Resolving %d parameter(s) interactively:\n", len(unresolvedParams))
 
