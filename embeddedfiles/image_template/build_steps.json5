@@ -7,10 +7,10 @@
 //
 // the steps must be formatted as Image Template Customizers: https://learn.microsoft.com/en-us/azure/templates/microsoft.virtualmachineimages/imagetemplates?pivots=deployment-language-arm-template#imagetemplatecustomizer-objects-1
 {
-  // if you need to execute steps early in the build process
+  // if you need to execute steps before any `default` steps are completed
   pre: [],
   // the default place to put your building steps
   default: [],
-  // if you need to execute steps late in the build process
+  // if you need to execute steps after all `default` steps are completed
   post: []
 }
