@@ -23,10 +23,14 @@ func main() {
 
 	ctx := context.WithValue(context.Background(), commands.CtxUpdatedKey, &atomic.Bool{})
 	defer func() {
+		updatedKey := ctx.Value(commands.CtxUpdatedKey).(*atomic.Bool)
+		if updatedKey.Load() {
+			return
+		}
+
 		select {
 		case version := <-backgroundVersionCheckResult:
-			updatedKey := ctx.Value(commands.CtxUpdatedKey).(*atomic.Bool)
-			if !updatedKey.Load() && version != bakedin.Version {
+			if version != bakedin.Version {
 				fmt.Printf("\n\nThere is a new version available (%s -> %s). Run \"avdcli update\" to download & install.\n", bakedin.Version, version)
 			}
 		case <-time.After(2 * time.Second):
