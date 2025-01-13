@@ -14,7 +14,10 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
 )
+
+const CtxUpdatedKey = "avdcliupdated"
 
 var UpdateCommand = &cli.Command{
 	Name:  "update",
@@ -39,6 +42,8 @@ var UpdateCommand = &cli.Command{
 			return errors.Wrap(err, "could not get the path of the current executable")
 		}
 
+		tmpFile := execPath + ".tmp"
+
 		fmt.Println("Checking latest version...")
 		latestVersion, latestDownloadURL, err := lib.FetchLatestVersion(c.Context)
 		if err != nil {
@@ -60,7 +65,8 @@ var UpdateCommand = &cli.Command{
 		}
 
 		fmt.Printf("Download from:\t%s\n", latestDownloadURL)
-		fmt.Printf("Download to:\t%s\n", execPath)
+		fmt.Printf("Download to:\t%s\n", tmpFile)
+		fmt.Printf("Install to:\t%s\n", execPath)
 
 		if !yesFlag {
 			selected := strings.ToLower(prompt.Input(
@@ -74,7 +80,7 @@ var UpdateCommand = &cli.Command{
 			}
 		}
 
-		if err := downloadUpdate(c.Context, latestDownloadURL, execPath); err != nil {
+		if err := downloadUpdate(c.Context, latestDownloadURL, execPath, tmpFile); err != nil {
 			return errors.Wrap(err, "failed to perform update")
 		}
 		fmt.Println("Update complete!")
@@ -86,12 +92,20 @@ var UpdateCommand = &cli.Command{
 	},
 }
 
-func downloadUpdate(ctx context.Context, downloadUrl string, targetPath string) error {
-	targetFile, err := os.OpenFile(targetPath, os.O_WRONLY, 0644)
+func downloadUpdate(ctx context.Context, downloadUrl, targetPath, tmpFilePath string) error {
+	originalFileInfo, err := os.Stat(targetPath)
 	if err != nil {
-		return errors.Wrap(err, "failed to open target file")
+		return errors.Wrap(err, "failed to get the file permissions of the current executable")
 	}
-	defer targetFile.Close()
+
+	tmpFile, err := os.OpenFile(tmpFilePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, originalFileInfo.Mode().Perm())
+	if err != nil {
+		return errors.Wrapf(err, "failed to create temp file in %s", tmpFilePath)
+	}
+	defer func() {
+		tmpFile.Close()
+		os.Remove(tmpFilePath)
+	}()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadUrl, nil)
 	if err != nil {
@@ -113,6 +127,15 @@ func downloadUpdate(ctx context.Context, downloadUrl string, targetPath string) 
 		"Downloading",
 	)
 
-	_, err = io.Copy(io.MultiWriter(targetFile, downloadProgress), resp.Body)
-	return errors.Wrap(err, "failed to download and write update to disk")
+	_, err = io.Copy(io.MultiWriter(tmpFile, downloadProgress), resp.Body)
+	if err != nil {
+		return errors.Wrap(err, "failed to download and write update to disk")
+	}
+
+	err = os.Rename(tmpFile.Name(), targetPath)
+	if err != nil {
+		return errors.Wrap(err, "failed to replace current version with newly downloaded version")
+	}
+
+	return nil
 }
