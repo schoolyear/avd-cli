@@ -8,6 +8,7 @@ import (
 	"github.com/schoolyear/avd-cli/lib"
 	"github.com/urfave/cli/v2"
 	"os"
+	"sync/atomic"
 	"time"
 )
 
@@ -19,11 +20,14 @@ func main() {
 			backgroundVersionCheckResult <- version
 		}
 	}()
+
+	ctx := context.WithValue(context.Background(), commands.CtxUpdatedKey, &atomic.Bool{})
 	defer func() {
 		select {
 		case version := <-backgroundVersionCheckResult:
-			if version != bakedin.Version {
-				fmt.Printf("\n\nThere is a new version available (%s -> %s). Run \"avdcli update\" to update.\n", bakedin.Version, version)
+			updatedKey := ctx.Value(commands.CtxUpdatedKey).(*atomic.Bool)
+			if !updatedKey.Load() && version != bakedin.Version {
+				fmt.Printf("\n\nThere is a new version available (%s -> %s). Run \"avdcli update\" to download & install.\n", bakedin.Version, version)
 			}
 		case <-time.After(2 * time.Second):
 		}
@@ -64,7 +68,7 @@ Visit https://avd.schoolyear.com for more information on how to use this tool.`,
 		Copyright: "Schoolyear",
 	}
 
-	if err := app.Run(os.Args); err != nil {
+	if err := app.RunContext(ctx, os.Args); err != nil {
 		fmt.Println("Error:", err.Error())
 		os.Exit(1)
 	}

@@ -78,6 +78,10 @@ var UpdateCommand = &cli.Command{
 			return errors.Wrap(err, "failed to perform update")
 		}
 		fmt.Println("Update complete!")
+
+		updatedKey := c.Context.Value(CtxUpdatedKey).(*atomic.Bool)
+		updatedKey.Store(true)
+
 		return nil
 	},
 }
