@@ -17,6 +17,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/schollz/progressbar/v3 v3.14.6
 	github.com/urfave/cli/v2 v2.27.4
+	golang.org/x/mod v0.17.0
 )
 
 require (

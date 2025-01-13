@@ -1,23 +1,48 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/schoolyear/avd-cli/commands"
+	"github.com/schoolyear/avd-cli/lib"
+	"github.com/schoolyear/avd-cli/static"
 	"github.com/urfave/cli/v2"
 	"os"
-)
-
-var (
-	Version = "v0.0.0"
+	"sync/atomic"
+	"time"
 )
 
 func main() {
+	backgroundVersionCheckResult := make(chan string)
+	go func() {
+		version, _, err := lib.FetchLatestVersion(context.Background())
+		if err == nil {
+			backgroundVersionCheckResult <- version
+		}
+	}()
+
+	ctx := context.WithValue(context.Background(), static.CtxUpdatedKey, &atomic.Bool{})
+	defer func() {
+		updatedKey := ctx.Value(static.CtxUpdatedKey).(*atomic.Bool)
+		if updatedKey.Load() {
+			return
+		}
+
+		select {
+		case version := <-backgroundVersionCheckResult:
+			if version != static.Version {
+				fmt.Printf("\n\nThere is a new version available (%s -> %s). Run \"avdcli update\" to download & install.\n", static.Version, version)
+			}
+		case <-time.After(2 * time.Second):
+		}
+	}()
+
 	app := &cli.App{
 		Name:  "avdcli",
 		Usage: "manage your AVD deployment",
 		Description: `This tool helps you manage your exam-ready images.
 Visit https://avd.schoolyear.com for more information on how to use this tool.`,
-		Version: Version,
+		Version: static.Version,
 		Suggest: true,
 		Commands: cli.Commands{
 			{
@@ -35,6 +60,7 @@ Visit https://avd.schoolyear.com for more information on how to use this tool.`,
 					commands.PackageDeployCommand,
 				},
 			},
+			commands.UpdateCommand,
 		},
 		EnableBashCompletion: true,
 		Authors: []*cli.Author{
@@ -46,7 +72,7 @@ Visit https://avd.schoolyear.com for more information on how to use this tool.`,
 		Copyright: "Schoolyear",
 	}
 
-	if err := app.Run(os.Args); err != nil {
+	if err := app.RunContext(ctx, os.Args); err != nil {
 		fmt.Println("Error:", err.Error())
 		os.Exit(1)
 	}
