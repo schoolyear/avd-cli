@@ -3,7 +3,7 @@ package lib
 import (
 	"context"
 	"fmt"
-	"github.com/schoolyear/avd-cli/bakedin"
+	"github.com/schoolyear/avd-cli/static"
 	"net/http"
 	"strings"
 	"time"
@@ -42,12 +42,12 @@ func DownloadFile(ctx context.Context, url string) ([]byte, error) {
 }
 
 func FetchLatestVersion(ctx context.Context) (version string, downloadUrl string, err error) {
-	releaseTag, err := GetLatestReleaseFromGithub(ctx, bakedin.GithubRepository)
+	releaseTag, err := GetLatestReleaseFromGithub(ctx, static.GithubRepository)
 	if err != nil {
-		return "", "", errors.Wrapf(err, "failed to fetch latest version for %s", bakedin.GithubRepository)
+		return "", "", errors.Wrapf(err, "failed to fetch latest version for %s", static.GithubRepository)
 	}
 
-	downloadUrl = fmt.Sprintf("%s/releases/download/%s/%s", bakedin.GithubRepository, releaseTag, bakedin.ReleaseFile)
+	downloadUrl = fmt.Sprintf("%s/releases/download/%s/%s", static.GithubRepository, releaseTag, static.ReleaseFile)
 
 	return releaseTag, downloadUrl, nil
 }

@@ -7,8 +7,8 @@ import (
 	"github.com/c-bata/go-prompt"
 	"github.com/friendsofgo/errors"
 	"github.com/schollz/progressbar/v3"
-	"github.com/schoolyear/avd-cli/bakedin"
 	"github.com/schoolyear/avd-cli/lib"
+	"github.com/schoolyear/avd-cli/static"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/mod/semver"
 	"io"
@@ -17,8 +17,6 @@ import (
 	"strings"
 	"sync/atomic"
 )
-
-const CtxUpdatedKey = "avdcliupdated"
 
 var UpdateCommand = &cli.Command{
 	Name:  "update",
@@ -55,7 +53,7 @@ var UpdateCommand = &cli.Command{
 			return nil
 		}
 
-		if semver.IsValid(bakedin.Version) && semver.IsValid(latestVersion) && semver.Compare(bakedin.Version, latestVersion) == 1 {
+		if semver.IsValid(static.Version) && semver.IsValid(latestVersion) && semver.Compare(static.Version, latestVersion) == 1 {
 			if downgradeFlag {
 				fmt.Println("Note: this is a downgrade")
 			} else {
@@ -83,7 +81,7 @@ var UpdateCommand = &cli.Command{
 		}
 		fmt.Println("Update complete!")
 
-		updatedKey := c.Context.Value(CtxUpdatedKey).(*atomic.Bool)
+		updatedKey := c.Context.Value(static.CtxUpdatedKey).(*atomic.Bool)
 		updatedKey.Store(true)
 
 		return nil
