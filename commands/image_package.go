@@ -67,6 +67,7 @@ var ImagePackage = &cli.Command{
 		outputPath := c.Path("output")
 		dryRun := c.Bool("dry-run")
 		overwriteOutput := c.Bool("overwrite")
+		deploymentTemplateFlag := c.String("deployment-template")
 
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -82,7 +83,7 @@ var ImagePackage = &cli.Command{
 			return err
 		}
 
-		deploymentTemplateJson, err := loadDeploymentTemplate(c.String("deployment-template"))
+		deploymentTemplateJson, err := loadDeploymentTemplate(deploymentTemplateFlag)
 		if err != nil {
 			return err
 		}

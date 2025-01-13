@@ -17,6 +17,7 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/joho/godotenv"
 	"github.com/schollz/progressbar/v3"
+	"github.com/schoolyear/avd-cli/lib"
 	"github.com/schoolyear/avd-cli/schema"
 	"github.com/urfave/cli/v2"
 	"io"
@@ -346,12 +347,7 @@ func resolveParameters(envFiles []string, params map[string]struct{}, resolveInt
 			value := prompt.Input(
 				fmt.Sprintf("(%d/%d) Enter value for %s:", i+1, len(unresolvedParams), param),
 				func(document prompt.Document) []prompt.Suggest { return nil },
-				prompt.OptionAddKeyBind(prompt.KeyBind{
-					Key: prompt.ControlC,
-					Fn: func(buffer *prompt.Buffer) {
-						os.Exit(1)
-					},
-				}),
+				lib.PromptOptionCtrlCExit(),
 			)
 			value = strings.TrimSpace(value)
 			if value == "" {

@@ -1,23 +1,31 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"github.com/schoolyear/avd-cli/bakedin"
 	"github.com/schoolyear/avd-cli/commands"
+	"github.com/schoolyear/avd-cli/lib"
 	"github.com/urfave/cli/v2"
 	"os"
-)
-
-var (
-	Version = "v0.0.0"
+	"time"
 )
 
 func main() {
+	backgroundVersionCheckResult := make(chan string)
+	go func() {
+		version, _, err := lib.FetchLatestVersion(context.Background())
+		if err == nil {
+			backgroundVersionCheckResult <- version
+		}
+	}()
+
 	app := &cli.App{
 		Name:  "avdcli",
 		Usage: "manage your AVD deployment",
 		Description: `This tool helps you manage your exam-ready images.
 Visit https://avd.schoolyear.com for more information on how to use this tool.`,
-		Version: Version,
+		Version: bakedin.Version,
 		Suggest: true,
 		Commands: cli.Commands{
 			{
@@ -35,6 +43,7 @@ Visit https://avd.schoolyear.com for more information on how to use this tool.`,
 					commands.PackageDeployCommand,
 				},
 			},
+			commands.UpdateCommand,
 		},
 		EnableBashCompletion: true,
 		Authors: []*cli.Author{
@@ -49,5 +58,13 @@ Visit https://avd.schoolyear.com for more information on how to use this tool.`,
 	if err := app.Run(os.Args); err != nil {
 		fmt.Println("Error:", err.Error())
 		os.Exit(1)
+	}
+
+	select {
+	case version := <-backgroundVersionCheckResult:
+		if version != bakedin.Version {
+			fmt.Printf("\n\nThere is a new version available (%s -> %s). Run \"avdcli update\" to update.\n", bakedin.Version, version)
+		}
+	case <-time.After(2 * time.Second):
 	}
 }
