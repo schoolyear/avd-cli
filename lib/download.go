@@ -66,7 +66,7 @@ func GetLatestReleaseFromGithub(ctx context.Context, repositoryUrl string) (stri
 		})).
 		R().
 		SetContext(ctx).
-		Head(repositoryUrl + latestReleasePath + "123")
+		Head(repositoryUrl + latestReleasePath)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to request latest release from Github")
 	}
