@@ -19,6 +19,15 @@ func main() {
 			backgroundVersionCheckResult <- version
 		}
 	}()
+	defer func() {
+		select {
+		case version := <-backgroundVersionCheckResult:
+			if version != bakedin.Version {
+				fmt.Printf("\n\nThere is a new version available (%s -> %s). Run \"avdcli update\" to update.\n", bakedin.Version, version)
+			}
+		case <-time.After(2 * time.Second):
+		}
+	}()
 
 	app := &cli.App{
 		Name:  "avdcli",
@@ -58,13 +67,5 @@ Visit https://avd.schoolyear.com for more information on how to use this tool.`,
 	if err := app.Run(os.Args); err != nil {
 		fmt.Println("Error:", err.Error())
 		os.Exit(1)
-	}
-
-	select {
-	case version := <-backgroundVersionCheckResult:
-		if version != bakedin.Version {
-			fmt.Printf("\n\nThere is a new version available (%s -> %s). Run \"avdcli update\" to update.\n", bakedin.Version, version)
-		}
-	case <-time.After(2 * time.Second):
 	}
 }

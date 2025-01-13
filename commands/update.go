@@ -55,8 +55,7 @@ var UpdateCommand = &cli.Command{
 			if downgradeFlag {
 				fmt.Println("Note: this is a downgrade")
 			} else {
-				fmt.Println("The latest public version is older than your current version. Use -downgrade to install the latest public version anyway")
-				os.Exit(2)
+				return errors.New("The latest public version is older than your current version. Use -downgrade to install the latest public version anyway")
 			}
 		}
 
