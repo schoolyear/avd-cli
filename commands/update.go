@@ -116,8 +116,7 @@ func downloadUpdate(ctx context.Context, downloadUrl, targetPath string) error {
 		"Downloading",
 	)
 
-	buffer := make([]byte, resp.ContentLength)
-	downloadBuffer := bytes.NewBuffer(buffer)
+	downloadBuffer := bytes.NewBuffer(make([]byte, 0, resp.ContentLength))
 
 	_, err = io.Copy(io.MultiWriter(downloadBuffer, downloadProgress), resp.Body)
 	if err != nil {
