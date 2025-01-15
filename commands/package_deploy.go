@@ -6,20 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/virtualmachineimagebuilder/armvirtualmachineimagebuilder"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
-	"github.com/c-bata/go-prompt"
-	"github.com/friendsofgo/errors"
-	validation "github.com/go-ozzo/ozzo-validation/v4"
-	"github.com/joho/godotenv"
-	"github.com/schollz/progressbar/v3"
-	"github.com/schoolyear/avd-cli/lib"
-	"github.com/schoolyear/avd-cli/schema"
-	"github.com/urfave/cli/v2"
 	"io"
 	"io/fs"
 	"net/url"
@@ -28,6 +14,20 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/virtualmachineimagebuilder/armvirtualmachineimagebuilder"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
+	"github.com/friendsofgo/errors"
+	validation "github.com/go-ozzo/ozzo-validation/v4"
+	"github.com/joho/godotenv"
+	"github.com/schollz/progressbar/v3"
+	"github.com/schoolyear/avd-cli/lib"
+	"github.com/schoolyear/avd-cli/schema"
+	"github.com/urfave/cli/v2"
 )
 
 var PackageDeployCommand = &cli.Command{
@@ -344,12 +344,10 @@ func resolveParameters(envFiles []string, params map[string]struct{}, resolveInt
 		fmt.Printf("Resolving %d parameter(s) interactively:\n", len(unresolvedParams))
 
 		for i, param := range unresolvedParams {
-			value := prompt.Input(
-				fmt.Sprintf("(%d/%d) Enter value for %s:", i+1, len(unresolvedParams), param),
-				func(document prompt.Document) []prompt.Suggest { return nil },
-				lib.PromptOptionCtrlCExit(),
-			)
-			value = strings.TrimSpace(value)
+			value, err := lib.PromptUserInput(fmt.Sprintf("(%d/%d) Enter value for %s: ", i+1, len(unresolvedParams), param))
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to prompt user for input")
+			}
 			if value == "" {
 				return nil, fmt.Errorf("failed to resolve %s interactively, empty value given", param)
 			}

@@ -4,18 +4,18 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/c-bata/go-prompt"
+	"io"
+	"net/http"
+	"os"
+	"strings"
+	"sync/atomic"
+
 	"github.com/friendsofgo/errors"
 	"github.com/schollz/progressbar/v3"
 	"github.com/schoolyear/avd-cli/lib"
 	"github.com/schoolyear/avd-cli/static"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/mod/semver"
-	"io"
-	"net/http"
-	"os"
-	"strings"
-	"sync/atomic"
 )
 
 var UpdateCommand = &cli.Command{
@@ -65,11 +65,11 @@ var UpdateCommand = &cli.Command{
 		fmt.Printf("Install to:\t%s\n", execPath)
 
 		if !yesFlag {
-			selected := strings.ToLower(prompt.Input(
-				"Do you want to download & install the update (yes/no): ",
-				lib.PromptNoCompletions(),
-				lib.PromptOptionCtrlCExit(),
-			))
+			selected, err := lib.PromptUserInput("Do you want to download & intall the update (yes/no): ")
+			if err != nil {
+				return errors.Wrap(err, "failed to prompt user for input")
+			}
+			selected = strings.ToLower(selected)
 			if selected != "yes" && selected != "y" {
 				fmt.Println(`update canceled. You must enter "yes" or "y" to confirm.`)
 				return nil

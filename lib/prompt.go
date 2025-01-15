@@ -1,19 +1,22 @@
 package lib
 
 import (
-	"github.com/c-bata/go-prompt"
+	"bufio"
+	"fmt"
 	"os"
+	"strings"
+
+	"github.com/friendsofgo/errors"
 )
 
-func PromptOptionCtrlCExit() prompt.Option {
-	return prompt.OptionAddKeyBind(prompt.KeyBind{
-		Key: prompt.ControlC,
-		Fn: func(buffer *prompt.Buffer) {
-			os.Exit(1)
-		},
-	})
-}
+func PromptUserInput(prompt string) (string, error) {
+	if prompt != "" {
+		fmt.Printf("%s", prompt)
+	}
+	val, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil {
+		return "", errors.Wrap(err, "failed to read from Stdin")
+	}
 
-func PromptNoCompletions() prompt.Completer {
-	return func(document prompt.Document) []prompt.Suggest { return nil }
+	return strings.TrimSpace(val), nil
 }
