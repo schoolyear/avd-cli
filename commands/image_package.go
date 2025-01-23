@@ -365,6 +365,7 @@ func mergeImageProperties(layers []layerProps) (*schema.ImageProperties, error) 
 func resolveDeploymentTemplateProperties(properties *schema.ImageProperties, deploymentTemplateJSONRaw []byte) []byte {
 	return schema.ReplacePlaceholders(deploymentTemplateJSONRaw, map[string]string{
 		schema.BuiltInSessionHostProxyWhitelistPlaceholder: properties.WhitelistedHosts.KeyString(),
+		schema.BuiltInInternalServicesPlaceholder:          properties.InternalServices.String(),
 	}, schema.BuiltInPlaceholder)
 }
 

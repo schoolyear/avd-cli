@@ -6,8 +6,9 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/fs"
+
+	"io"
 	"net/url"
 	"os"
 	"path"
@@ -90,6 +91,13 @@ var PackageDeployCommand = &cli.Command{
 			Aliases: []string{"i"},
 			Value:   true,
 		},
+		&cli.StringFlag{
+			Name:      "deployment-template-output",
+			Usage:     "Path to save the resolved deployment template",
+			Required:  true,
+			Aliases:   []string{"dto"},
+			TakesFile: true,
+		},
 	},
 	Action: func(c *cli.Context) error {
 		imageTemplateName := c.Path("name")
@@ -103,6 +111,7 @@ var PackageDeployCommand = &cli.Command{
 		timeoutFlag := c.Duration("timeout")
 		envFilePaths := c.StringSlice("env")
 		resolveInteractively := c.Bool("resolve-interactively")
+		deploymentTemplateOutput := c.Path("deployment-template-output")
 
 		ctx := context.Background()
 		if timeoutFlag > 0 {
@@ -118,7 +127,7 @@ var PackageDeployCommand = &cli.Command{
 		fullPackagePath := filepath.Join(cwd, packagePath)
 
 		packageFs := os.DirFS(packagePath)
-		imageProperties, resourcesArchiveChecksum, err := scanPackagePath(packageFs, envFilePaths, resolveInteractively)
+		imageProperties, resourcesArchiveChecksum, err := scanPackagePath(packageFs, deploymentTemplateOutput, envFilePaths, resolveInteractively)
 		if err != nil {
 			return errors.Wrapf(err, "failed to scan image package directory %s", fullPackagePath)
 		}
@@ -227,7 +236,8 @@ func parseResourcesURI(resourcesURI string) (*storageAccountBlob, error) {
 	}, nil
 }
 
-func scanPackagePath(packageFs fs.FS, envFiles []string, resolveInteractively bool) (imageProperties *schema.ImageProperties, archiveSha256 []byte, err error) {
+func scanPackagePath(packageFs fs.FS, deploymentTemplateOutputPath string, envFiles []string, resolveInteractively bool) (imageProperties *schema.ImageProperties, archiveSha256 []byte, err error) {
+	// resolve parameters in the properties file
 	propertiesFile, err := packageFs.Open(imagePropertiesFileWithExtension)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "failed to open properties file")
@@ -239,10 +249,12 @@ func scanPackagePath(packageFs fs.FS, envFiles []string, resolveInteractively bo
 		return nil, nil, errors.Wrap(err, "failed to read properties file")
 	}
 
+	var resolvedParams map[string]string
 	paramsToResolve := schema.FindPlaceholdersInJSON(propertiesFileContent, schema.ParameterPlaceholder)
 	if len(paramsToResolve) > 0 {
 		fmt.Printf("Resolving %d package parameters\n", len(paramsToResolve))
-		resolvedParams, err := resolveParameters(envFiles, paramsToResolve, resolveInteractively)
+		var err error
+		resolvedParams, err = resolveParameters(envFiles, paramsToResolve, resolveInteractively)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "failed to resolve parameters")
 		}
@@ -257,6 +269,39 @@ func scanPackagePath(packageFs fs.FS, envFiles []string, resolveInteractively bo
 
 	if err := json.Unmarshal(resolvedPropertiesFileContent, &imageProperties); err != nil {
 		return nil, nil, errors.Wrapf(err, "failed to parse image properties json:\n%s", resolvedPropertiesFileContent)
+	}
+
+	// resolve parameters in deployment template
+	deploymentTemplateFile, err := packageFs.Open(deploymentTemplateFileWithExtension)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to open deployment template file")
+	}
+	defer deploymentTemplateFile.Close()
+
+	originalDeploymentTemplateFileContents, err := io.ReadAll(deploymentTemplateFile)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to read deployment template file contents")
+	}
+
+	// first do a pass with previously resolved parameters from the properties file content
+	// so we don't resolve them again
+	resolvedDeploymentTemplateFileContents := schema.ReplacePlaceholders(originalDeploymentTemplateFileContents, resolvedParams, schema.ParameterPlaceholder)
+
+	// search for unresolved parameters
+	paramsToResolve = schema.FindPlaceholdersInJSON(resolvedDeploymentTemplateFileContents, schema.ParameterPlaceholder)
+	if len(paramsToResolve) > 0 {
+		fmt.Printf("Resolving %d deployment template parameters\n", len(paramsToResolve))
+		resolvedParams, err := resolveParameters(envFiles, paramsToResolve, resolveInteractively)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to resolve parameters")
+		}
+
+		resolvedDeploymentTemplateFileContents = schema.ReplacePlaceholders(resolvedDeploymentTemplateFileContents, resolvedParams, schema.ParameterPlaceholder)
+	}
+
+	// Write the deployment template output file
+	if err := os.WriteFile(deploymentTemplateOutputPath, resolvedDeploymentTemplateFileContents, 0644); err != nil {
+		return nil, nil, errors.Wrap(err, "failed to write deployment template file to disk")
 	}
 
 	hash := sha256.New()

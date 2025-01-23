@@ -2,16 +2,19 @@ package schema
 
 import (
 	"encoding/json"
+	"fmt"
+	"regexp"
+	"strings"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/virtualmachineimagebuilder/armvirtualmachineimagebuilder"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/schoolyear/avd-cli/lib"
-	"regexp"
-	"strings"
 )
 
 type ImageProperties struct {
 	PlaceholderProperties PlaceholderProperties                                             `json:"placeholderProperties,omitempty"`
 	WhitelistedHosts      WhitelistedHosts                                                  `json:"whitelistedHosts"`
+	InternalServices      InternalServices                                                  `json:"internalServices,omitempty"`
 	ImageTemplate         lib.JSON5Unsupported[armvirtualmachineimagebuilder.ImageTemplate] `json:"imageTemplate"`
 }
 
@@ -19,6 +22,7 @@ func (i ImageProperties) Validate() error {
 	return validation.ValidateStruct(&i,
 		validation.Field(&i.PlaceholderProperties, validation.Length(0, 50)),
 		validation.Field(&i.WhitelistedHosts, validation.Length(0, 75)),
+		validation.Field(&i.InternalServices, validation.Length(0, 500)),
 		validation.Field(&i.ImageTemplate, validation.Required),
 	)
 }
@@ -26,6 +30,23 @@ func (i ImageProperties) Validate() error {
 type PlaceholderProperties map[string]json.RawMessage
 
 type WhitelistedHosts map[string]struct{}
+
+type InternalServices map[string]string
+
+func (i InternalServices) String() string {
+	// we don't want empty services to be marshalled as null
+	// but as empty JSON instead
+	if i == nil {
+		i = map[string]string{}
+	}
+
+	data, err := json.Marshal(i)
+	if err != nil {
+		fmt.Println("[Error]: failed to marshal internal services: " + err.Error())
+	}
+
+	return string(data)
+}
 
 func (w WhitelistedHosts) KeyString() string {
 	builder := strings.Builder{}
@@ -51,6 +72,7 @@ const (
 
 const (
 	BuiltInSessionHostProxyWhitelistPlaceholder string = "sessionHostProxyWhitelist"
+	BuiltInInternalServicesPlaceholder          string = "internalServiceLinkIdsJSON"
 )
 
 var placeholderRegex = regexp.MustCompile(`\[{3}([a-zA-Z0-9_]+):([a-zA-Z0-9_]+)]{3}`)
@@ -75,7 +97,15 @@ func ReplacePlaceholders(bytes []byte, mapping map[string]string, placeholderTyp
 		if string(match[1]) != string(placeholderType) {
 			return bytes
 		}
-		return []byte(mapping[string(match[2])])
+		// Do not replace values that don't exist in the mapping
+		mappedValue, ok := mapping[string(match[2])]
+		if !ok {
+			return bytes
+		}
+
+		// escape double quotes " since this will be embedded
+		// inside JSON
+		return []byte(strings.ReplaceAll(mappedValue, `"`, `\"`))
 	})
 }
 
