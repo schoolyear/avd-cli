@@ -389,12 +389,9 @@ func resolveParameters(envFiles []string, params map[string]struct{}, resolveInt
 		fmt.Printf("Resolving %d parameter(s) interactively:\n", len(unresolvedParams))
 
 		for i, param := range unresolvedParams {
-			value, err := lib.PromptUserInput(fmt.Sprintf("(%d/%d) Enter value for %s: ", i+1, len(unresolvedParams), param))
+			value, err := lib.PromptUserInput(fmt.Sprintf("(%d/%d) Enter value for %s (press Enter for empty): ", i+1, len(unresolvedParams), param))
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to prompt user for input")
-			}
-			if value == "" {
-				return nil, fmt.Errorf("failed to resolve %s interactively, empty value given", param)
 			}
 
 			resolvedParams[param] = value
