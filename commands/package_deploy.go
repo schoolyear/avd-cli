@@ -98,6 +98,10 @@ var PackageDeployCommand = &cli.Command{
 			Aliases:   []string{"dto"},
 			TakesFile: true,
 		},
+		&cli.StringFlag{
+			Name:  "parameters",
+			Usage: "A coma separated list of parameter key=value pairs to be automatically resolved",
+		},
 	},
 	Action: func(c *cli.Context) error {
 		imageTemplateName := c.Path("name")
@@ -113,6 +117,11 @@ var PackageDeployCommand = &cli.Command{
 		resolveInteractively := c.Bool("resolve-interactively")
 		deploymentTemplateOutput := c.Path("deployment-template-output")
 
+		argParams, err := parseParametersFromArgument(c.String("parameters"))
+		if err != nil {
+			return errors.Wrap(err, "failed to parse parameters from argument")
+		}
+
 		ctx := context.Background()
 		if timeoutFlag > 0 {
 			var cancel context.CancelFunc
@@ -127,7 +136,7 @@ var PackageDeployCommand = &cli.Command{
 		fullPackagePath := filepath.Join(cwd, packagePath)
 
 		packageFs := os.DirFS(packagePath)
-		imageProperties, resourcesArchiveChecksum, err := scanPackagePath(packageFs, deploymentTemplateOutput, envFilePaths, resolveInteractively)
+		imageProperties, resourcesArchiveChecksum, err := scanPackagePath(packageFs, deploymentTemplateOutput, envFilePaths, argParams, resolveInteractively)
 		if err != nil {
 			return errors.Wrapf(err, "failed to scan image package directory %s", fullPackagePath)
 		}
@@ -196,6 +205,33 @@ var PackageDeployCommand = &cli.Command{
 	},
 }
 
+var errMalformedParams = errors.New("malformed parameters")
+
+func parseParametersFromArgument(paramStr string) (map[string]string, error) {
+	if paramStr == "" {
+		return nil, nil
+	}
+
+	// split string on ','
+	splitParams := strings.Split(paramStr, ",")
+	if len(splitParams) < 1 {
+		return nil, errMalformedParams
+	}
+
+	// split string on '='
+	params := make(map[string]string, len(splitParams))
+	for _, sp := range splitParams {
+		keyValueParam := strings.Split(sp, "=")
+		if len(keyValueParam) != 2 || len(keyValueParam[0]) == 0 || len(keyValueParam[1]) == 0 {
+			return nil, errMalformedParams
+		}
+
+		params[keyValueParam[0]] = keyValueParam[1]
+	}
+
+	return params, nil
+}
+
 type storageAccountBlob struct {
 	Service   string
 	Container string
@@ -236,7 +272,7 @@ func parseResourcesURI(resourcesURI string) (*storageAccountBlob, error) {
 	}, nil
 }
 
-func scanPackagePath(packageFs fs.FS, deploymentTemplateOutputPath string, envFiles []string, resolveInteractively bool) (imageProperties *schema.ImageProperties, archiveSha256 []byte, err error) {
+func scanPackagePath(packageFs fs.FS, deploymentTemplateOutputPath string, envFiles []string, argumentParameters map[string]string, resolveInteractively bool) (imageProperties *schema.ImageProperties, archiveSha256 []byte, err error) {
 	// resolve parameters in the properties file
 	propertiesFile, err := packageFs.Open(imagePropertiesFileWithExtension)
 	if err != nil {
@@ -254,7 +290,7 @@ func scanPackagePath(packageFs fs.FS, deploymentTemplateOutputPath string, envFi
 	if len(paramsToResolve) > 0 {
 		fmt.Printf("Resolving %d package parameters\n", len(paramsToResolve))
 		var err error
-		resolvedParams, err = resolveParameters(envFiles, paramsToResolve, resolveInteractively)
+		resolvedParams, err = resolveParameters(envFiles, argumentParameters, paramsToResolve, resolveInteractively)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "failed to resolve parameters")
 		}
@@ -291,7 +327,7 @@ func scanPackagePath(packageFs fs.FS, deploymentTemplateOutputPath string, envFi
 	paramsToResolve = schema.FindPlaceholdersInJSON(resolvedDeploymentTemplateFileContents, schema.ParameterPlaceholder)
 	if len(paramsToResolve) > 0 {
 		fmt.Printf("Resolving %d deployment template parameters\n", len(paramsToResolve))
-		resolvedParams, err := resolveParameters(envFiles, paramsToResolve, resolveInteractively)
+		resolvedParams, err := resolveParameters(envFiles, argumentParameters, paramsToResolve, resolveInteractively)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "failed to resolve parameters")
 		}
@@ -354,7 +390,7 @@ func replaceSourceURIPlaceholder(imageTemplate armvirtualmachineimagebuilder.Ima
 	return nil
 }
 
-func resolveParameters(envFiles []string, params map[string]struct{}, resolveInteractively bool) (map[string]string, error) {
+func resolveParameters(envFiles []string, argumentParameters map[string]string, params map[string]struct{}, resolveInteractively bool) (map[string]string, error) {
 	env, err := godotenv.Read(envFiles...)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read env files")
@@ -363,6 +399,18 @@ func resolveParameters(envFiles []string, params map[string]struct{}, resolveInt
 	resolvedParams := make(map[string]string, len(params))
 	var unresolvedParams []string
 	for param := range params {
+		// argument parameters take precedence
+		// resolve parameter from arguments if exists
+		argValue, ok := argumentParameters[param]
+		if ok {
+			resolvedParams[param] = argValue
+			fmt.Printf("\t%s=%s\n", param, argValue)
+			continue
+		}
+
+		// Then we check environment variables
+		// if we can't find from environment aswell
+		// we mark as unresolved to resolve interactively
 		value, ok := env[param]
 		if !ok {
 			unresolvedParams = append(unresolvedParams, param)
