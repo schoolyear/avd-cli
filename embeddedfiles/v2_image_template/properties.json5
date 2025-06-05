@@ -1,4 +1,10 @@
 {
+  version: '2',
+  name: 'example-image',
+  author: {
+    name: 'Schoolyear',
+    email: 'team@schoolyear.com'
+  },
   network: {
     // HTTP(s) hosts that are whitelisted in the proxy
     // note that the application must be configured to use the proxy or support Windows IE proxy settings
