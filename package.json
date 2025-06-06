@@ -1,0 +1,16 @@
+{
+  "name": "@schoolyear/avd-cli",
+  "version": "0.0.1",
+  "description": "A repository describing the types of the image builder",
+  "scripts": {
+    "prepack": "json2ts schema/v2_properties.json -o index.d.ts --additionalProperties false"
+  },
+  "main": "",
+  "types": "./index.d.ts",
+  "author": "Laurens Bremers",
+  "license": "UNLICENSED",
+  "repository": "https://github.com/schoolyear/avd-cli-private",
+  "devDependencies": {
+    "json-schema-to-typescript": "^13.0.2"
+  }
+}
