@@ -1,6 +1,3 @@
-//go:generate go install github.com/atombender/go-jsonschema@v0.20.0
-//go:generate go run github.com/atombender/go-jsonschema@v0.20.0 --schema-package=v2_layer_properties=github.com/schoolyear/avd-cli/schema --schema-output=v2_layer_properties=schema/v2_properties_types.go schema/v2_properties.json
-
 package main
 
 import (
@@ -49,11 +46,25 @@ Visit https://avd.schoolyear.com for more information on how to use this tool.`,
 		Suggest: true,
 		Commands: cli.Commands{
 			{
+				Name:  "layer",
+				Usage: "manage image layers",
+				Subcommands: cli.Commands{
+					commands.LayerNewCommand,
+				},
+			},
+			{
+				Name:  "bundle",
+				Usage: "manage layer bundles",
+				Subcommands: cli.Commands{
+					commands.BundleLayersCommand,
+				},
+			},
+			{
 				Name:  "image",
 				Usage: "manage images (used for v1 images)",
 				Subcommands: cli.Commands{
 					commands.ImageNewCommand,
-					commands.ImagePackage,
+					commands.ImagePackageCommand,
 				},
 			},
 			{

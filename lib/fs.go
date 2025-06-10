@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 )
 
 func EnsureEmptyDirectory(path string, overwriteOnCollision bool) error {
@@ -77,4 +78,42 @@ func (e EmptyFs) ReadDir(_ string) ([]fs.DirEntry, error) {
 
 func (e EmptyFs) Open(_ string) (fs.File, error) {
 	return nil, os.ErrNotExist
+}
+
+func CopyDirectory(sourceFs fs.FS, sourceBasePath string, targetBasePath string) error {
+	defer func() {
+		fmt.Println("")
+	}()
+	return fs.WalkDir(sourceFs, sourceBasePath, func(sourcePath string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return errors.Wrapf(err, "failed to walk path %s", sourcePath)
+		}
+
+		rel, err := filepath.Rel(sourceBasePath, sourcePath)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get rel to base path for %s", sourcePath)
+		}
+		targetPath := filepath.Join(targetBasePath, rel)
+		targetPathBase := filepath.Base(targetBasePath)
+
+		if d.IsDir() {
+			fmt.Printf("[DIR ]: %s", filepath.Join(targetPathBase, rel))
+			var mkDirFn = os.Mkdir
+			if rel == "." {
+				mkDirFn = os.MkdirAll
+			}
+			if err := mkDirFn(targetPath, os.ModePerm); err != nil {
+				return errors.Wrapf(err, "failed to create directory: %s", targetPath)
+			}
+			fmt.Printf(" - OK\n")
+		} else {
+			fmt.Printf("[FILE]: %s", filepath.Join(targetPathBase, rel))
+			if err := CopyFile(sourceFs, sourcePath, targetPath); err != nil {
+				return errors.Wrap(err, "failed to copy file")
+			}
+			fmt.Printf(" - OK\n")
+		}
+
+		return nil
+	})
 }

@@ -1,4 +1,2 @@
-.idea/
-dist
-index.d.ts
-node_modules
+/tmp
+bundle.zip
