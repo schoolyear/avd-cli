@@ -40,18 +40,6 @@ foreach ($path in $LayerPaths) {
     Write-Host " - $path"
 }
 
-
-## Validate layers
-# Check if the given paths actually exist
-# Each directory must at least contain a properties.json or json5 file
-# Make sure the following keys exist in the file:
-# - version: must be "2"
-# - name: must be a non-empty, alphanumeric (with dashes) string
-#
-# The names must be unique among all layers
-# Print a summary of each dir validation status and reason for failing.
-# exit with an explicit exit code if not all layers are valid
-
 $ValidLayers = @()
 $AllValid = $true
 $LayerNames = @{}
@@ -102,9 +90,9 @@ foreach ($path in $LayerPaths) {
                 $properties = $content | ConvertFrom-Json
 
                 # Validate version
-                if (-not $properties.version -or $properties.version -ne "2") {
+                if (-not $properties.version -or $properties.version -ne "v2") {
                     $isValid = $false
-                    $validationErrors += "Invalid or missing 'version' property. Must be '2'"
+                    $validationErrors += "Invalid or missing 'version' property. Must be 'v2'"
                 }
 
                 # Validate name
@@ -137,8 +125,9 @@ foreach ($path in $LayerPaths) {
         Write-Host " - ${path}: " -NoNewline
         Write-Host "[Valid]" -ForegroundColor Green -NoNewline
         Write-Host " Layer: $layerName"
-        $ValidLayers += @{ Path = $path; Name = $layerName }
-    } else {
+        $ValidLayers += @{ Path = $path; Properties = $properties }
+    }
+    else {
         Write-Host " - ${path}: " -NoNewline
         Write-Host "[Invalid]" -ForegroundColor Red
         foreach ($validationError in $validationErrors) {
@@ -160,7 +149,7 @@ Write-Host "`nAll layers validated successfully." -ForegroundColor Green
 if (-not $Force) {
     Write-Host "`nYou are about to process the following layers:" -ForegroundColor Yellow
     foreach ($layer in $ValidLayers) {
-        Write-Host " - $($layer.Name) ($($layer.Path))"
+        Write-Host " - $($layer.Properties.name) ($($layer.Path))"
     }
 
     $confirmation = Read-Host "`nDo you want to continue? (Y/N)"
@@ -175,7 +164,7 @@ Write-Host "`nProcessing layers...`n"
 
 foreach ($layer in $ValidLayers) {
     $layerPath = $layer.Path
-    $layerName = $layer.Name
+    $layerName = $layer.Properties.name
 
     # Print layer name
     Write-Host "Processing layer: $layerName ($layerPath)" -ForegroundColor Cyan
@@ -183,22 +172,26 @@ foreach ($layer in $ValidLayers) {
     # Run installation script
     $installScriptPath = Join-Path -Path $layerPath -ChildPath "install.ps1"
     if (Test-Path -Path $installScriptPath) {
-        Write-Host " - Running installation script..." -NoNewline
-        try {
-            # Start a new PowerShell process in the install script's directory
-            # This ensures the script runs with its own directory as the working directory
-            $process = Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -File .\install.ps1" -WorkingDirectory $layerPath -Wait -PassThru -NoNewWindow
-
-            # Check if the process completed successfully
-            if ($process.ExitCode -ne 0) {
-                throw "Installation script exited with code $($process.ExitCode)"
+        Write-Host " - Running installation script..."
+        try
+        {
+            Push-Location $layerPath
+            & ".\install.ps1"
+            if (!$?)
+            {
+                throw "Installation script failed"
             }
-
-            Write-Host " Done" -ForegroundColor Green
-        } catch {
-            Write-Host " Error: $($_.Exception.Message)" -ForegroundColor Red
+            Pop-Location
+            Write-Host "Done" -ForegroundColor Green
         }
-    } else {
+        catch
+        {
+            Write-Error "Installation script error: $( $_.Exception.Message )"
+            exit 1
+        }
+    }
+    else
+    {
         Write-Host " - Warning: No install.ps1 script found" -ForegroundColor Yellow
     }
 
@@ -253,6 +246,8 @@ foreach ($layer in $ValidLayers) {
         Write-Host " - No on_user_login.user.ps1 script found"
     }
 
+    ## todo: setup networking whitelist
+
     Write-Host "Layer processing completed: $layerName`n" -ForegroundColor Cyan
 }
 
@@ -278,7 +273,7 @@ if (-not $NoCleanup) {
 
         foreach ($layer in $ValidLayers) {
             $layerPath = $layer.Path
-            $layerName = $layer.Name
+            $layerName = $layer.Properties.name
 
             Write-Host " - Removing layer directory: $layerName ($layerPath)" -ForegroundColor Yellow
             try {
