@@ -57,6 +57,7 @@ Visit https://avd.schoolyear.com for more information on how to use this tool.`,
 				Usage: "manage layer bundles",
 				Subcommands: cli.Commands{
 					commands.BundleLayersCommand,
+					commands.BundleAutoDeployCommand,
 				},
 			},
 			{

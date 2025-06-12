@@ -95,16 +95,9 @@ var BundleLayersCommand = &cli.Command{
 		fmt.Println("")
 		showBaseImage(layers)
 
+		// todo: extract image config from bundle
+
 		return nil
-
-		// decide which base image should be used
-		// - default
-		// - on conflict -> warning
-
-		// copy all folders into a zip
-		// add execute.ps1 script
-
-		// combine all property files (json list of property file contents) -> write to json file
 	},
 }
 

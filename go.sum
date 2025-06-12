@@ -8,6 +8,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage v1.6.0 
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage v1.6.0/go.mod h1:oDrbWx4ewMylP7xHivfgixbfGBT6APAwsSoHRKotnIc=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/virtualmachineimagebuilder/armvirtualmachineimagebuilder v1.2.1 h1:k8SYtWDR2WyrOI/WM9Uj0tzp0G9hfvBPyMKftv8dtQQ=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/virtualmachineimagebuilder/armvirtualmachineimagebuilder v1.2.1/go.mod h1:Vvx5jcO9aa2+96TveIolZLBr1wvDKEBMn7U34Q+HGn4=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/virtualmachineimagebuilder/armvirtualmachineimagebuilder/v2 v2.3.0 h1:oMC000T4/6AQREdUeR7pL/e1qcrKfznthEaj2DGKOo4=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/virtualmachineimagebuilder/armvirtualmachineimagebuilder/v2 v2.3.0/go.mod h1:+iH0q9O/v2R4DlcvTrdXKcKUhxazcu4gTBb/QCfkDP4=
 github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.4.0 h1:Be6KInmFEKV81c0pOAEbRYehLMwmmGI1exuFj248AMk=
 github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.4.0/go.mod h1:WCPBHsOXfBVnivScjs2ypRfimjEW0qPVLGgJkZlrIOA=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 h1:XHOnouVk1mxXfQidrMEnLlPk9UMeRtyBTnEFtxkV0kU=
@@ -61,8 +63,8 @@ github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/schollz/progressbar/v3 v3.14.6 h1:GyjwcWBAf+GFDMLziwerKvpuS7ZF+mNTAXIB2aspiZs=
 github.com/schollz/progressbar/v3 v3.14.6/go.mod h1:Nrzpuw3Nl0srLY0VlTvC4V6RL50pcEymjy6qyJAaLa0=
-github.com/schoolyear/avd-image-types v0.0.4-alpha h1:w2EvUzyO5uepUPpkX5xEVoZKzk+LpkuhyMqBTE0KYrA=
-github.com/schoolyear/avd-image-types v0.0.4-alpha/go.mod h1:q9WqlmL5vvNJxQfhTuA+NDpUHTT9OJHvOQMQTNcmxLE=
+github.com/schoolyear/avd-image-types v0.0.6-alpha h1:5ZA7qwbo00pX5sufXNwSeChKC01jmGu8KF7JgffHeOY=
+github.com/schoolyear/avd-image-types v0.0.6-alpha/go.mod h1:q9WqlmL5vvNJxQfhTuA+NDpUHTT9OJHvOQMQTNcmxLE=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=

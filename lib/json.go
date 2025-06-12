@@ -121,3 +121,23 @@ func (j *JSON5Unsupported[T]) UnmarshalJSON(bytes []byte) error {
 	j.V = v
 	return nil
 }
+
+type JSONCombinedMarshaller struct {
+	// Caller is responsible for making sure objects have no overlapping keys are marshal to JSON objects
+	Objects []any
+}
+
+func (j JSONCombinedMarshaller) MarshalJSON() ([]byte, error) {
+	out := []byte{'{'}
+	for i, obj := range j.Objects {
+		objOut, err := json.Marshal(obj)
+		if err != nil {
+			return nil, err
+		}
+		if i > 0 {
+			out = append(out, ',')
+		}
+		out = append(out, objOut[1:len(objOut)-1]...)
+	}
+	return append(out, '}'), nil
+}
