@@ -99,7 +99,7 @@ foreach ($path in $LayerPaths) {
                 if (-not $properties.name -or $properties.name -eq "") {
                     $isValid = $false
                     $validationErrors += "Missing or empty 'name' property"
-                } elseif ($properties.name -notmatch '^[a-zA-Z0-9-]+$') {
+                } elseif ($properties.name -notmatch '^[a-zA-Z0-9-.]+$') {
                     $isValid = $false
                     $validationErrors += "'name' property must only contain alphanumeric characters and dashes"
                 } else {
@@ -139,7 +139,7 @@ foreach ($path in $LayerPaths) {
 
 # Exit if not all layers are valid
 if (-not $AllValid) {
-    Write-Host "`nValidation failed. Please fix the issues and try again." -ForegroundColor Red
+    Write-Error "`nValidation failed. Please fix the issues and try again."
     exit 1
 }
 
@@ -246,7 +246,46 @@ foreach ($layer in $ValidLayers) {
         Write-Host " - No on_user_login.user.ps1 script found"
     }
 
-    ## todo: setup networking whitelist
+    # Process network whitelisting for public IPs
+    if ($layer.Properties.network -and $layer.Properties.network.whitelisted_public_ips) {
+        Write-Host " - Processing firewall whitelist rules..."
+        $firewallRuleCount = 0
+
+        foreach ($whitelistEntry in $layer.Properties.network.whitelisted_public_ips) {
+            $target = $whitelistEntry.target
+            if (-not $target) {
+                Write-Host "   - Warning: Skipping whitelist entry without target IP" -ForegroundColor Yellow
+                continue
+            }
+
+            $ruleName = "SY-Layer-$layerName-Allow-$($target -replace '[\\/:*?"<>|]', '-')"
+            $ports = $null
+
+            # Handle port specification if provided
+            if ($whitelistEntry.port) {
+                $ports = $whitelistEntry.port
+                $ruleName += "-Port-$($ports -replace '[\\/:*?"<>|]', '-')"
+            }
+
+            try {
+                # Create a single firewall rule allowing all protocols
+                if ($ports) {
+                    Write-Host "   - Adding firewall rule to allow $target on port(s) $ports"
+                    New-NetFirewallRule -DisplayName $ruleName -Direction Outbound -Action Allow -RemoteAddress $target -Protocol Any -RemotePort $ports -Profile Any -ErrorAction Stop | Out-Null
+                } else {
+                    Write-Host "   - Adding firewall rule to allow $target on all ports"
+                    New-NetFirewallRule -DisplayName $ruleName -Direction Outbound -Action Allow -RemoteAddress $target -Protocol Any -Profile Any -ErrorAction Stop | Out-Null
+                }
+                $firewallRuleCount++
+            } catch {
+                Write-Error "Error creating firewall rule for ${target}: $($_.Exception.Message)"
+            }
+        }
+
+        Write-Host "   Added $firewallRuleCount firewall rules" -ForegroundColor Green
+    } else {
+        Write-Host " - No whitelisted_public_ips found in layer properties"
+    }
 
     Write-Host "Layer processing completed: $layerName`n" -ForegroundColor Cyan
 }
@@ -280,7 +319,8 @@ if (-not $NoCleanup) {
                 Remove-Item -Path $layerPath -Recurse -Force
                 Write-Host "   Done" -ForegroundColor Green
             } catch {
-                Write-Host "   Error: $($_.Exception.Message)" -ForegroundColor Red
+                Write-Error "   Error: $($_.Exception.Message)"
+                exit 1
             }
         }
 

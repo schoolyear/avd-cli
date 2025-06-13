@@ -65,6 +65,12 @@ github.com/schollz/progressbar/v3 v3.14.6 h1:GyjwcWBAf+GFDMLziwerKvpuS7ZF+mNTAXI
 github.com/schollz/progressbar/v3 v3.14.6/go.mod h1:Nrzpuw3Nl0srLY0VlTvC4V6RL50pcEymjy6qyJAaLa0=
 github.com/schoolyear/avd-image-types v0.0.6-alpha h1:5ZA7qwbo00pX5sufXNwSeChKC01jmGu8KF7JgffHeOY=
 github.com/schoolyear/avd-image-types v0.0.6-alpha/go.mod h1:q9WqlmL5vvNJxQfhTuA+NDpUHTT9OJHvOQMQTNcmxLE=
+github.com/schoolyear/avd-image-types v0.0.8 h1:cCvlPiQ3kNljGUM/4789vJAwo3UuejXdI4rTmoyzmdM=
+github.com/schoolyear/avd-image-types v0.0.8/go.mod h1:q9WqlmL5vvNJxQfhTuA+NDpUHTT9OJHvOQMQTNcmxLE=
+github.com/schoolyear/avd-image-types v0.0.9 h1:cX8i4l+ynygu8iBjw1yKgr28Pe+FKqstdRFEn63pa1E=
+github.com/schoolyear/avd-image-types v0.0.9/go.mod h1:q9WqlmL5vvNJxQfhTuA+NDpUHTT9OJHvOQMQTNcmxLE=
+github.com/schoolyear/avd-image-types v0.0.11 h1:dDzVm0ZW4DbddKubRE62w/ZoceOqulthMWtAg1IEtt0=
+github.com/schoolyear/avd-image-types v0.0.11/go.mod h1:q9WqlmL5vvNJxQfhTuA+NDpUHTT9OJHvOQMQTNcmxLE=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=

@@ -1,9 +1,9 @@
 {
   version: 'v2',
-  name: 'example-image',
+  name: 'com.example.imagename',
   author: {
-    name: 'Schoolyear',
-    email: 'team@schoolyear.com'
+    name: 'John Doe (example org)',
+    email: 'j.doe@example.com'
   },
   network: {
     // HTTP(s) hosts that are whitelisted in the proxy
