@@ -95,7 +95,7 @@ var BundleLayersCommand = &cli.Command{
 		fmt.Println("")
 		showBaseImage(layers)
 
-		// todo: extract image config from bundle
+		// todo: output bundle properties
 
 		return nil
 	},
@@ -214,7 +214,7 @@ func copyLayersIntoBundle(layers []avdimagetypes.V2LayerProperties, layerPaths [
 	fmt.Printf("[Done]\n")
 
 	for i, layerPath := range layerPaths {
-		layerName := layers[i].Name
+		layerName := fmt.Sprintf("%03d-%s", i+1, layers[i].Name)
 
 		fmt.Printf("\t- Copying layer %s...", layerName)
 		if err := copyLayerToBundle(zipWriter, layerName, layerPath); err != nil {

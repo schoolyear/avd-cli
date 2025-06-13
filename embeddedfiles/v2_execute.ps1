@@ -31,7 +31,7 @@ if (($LayerPaths -and $ScanForDirectories) -or (-not $LayerPaths -and -not $Scan
 ## List layers dir paths
 # If ScanForDirectories is set, scan the current working directory for all folders
 if ($ScanForDirectories) {
-    $LayerPaths = Get-ChildItem -Directory | Select-Object -ExpandProperty FullName
+    $LayerPaths = Get-ChildItem -Directory | Sort-Object Name | Select-Object -ExpandProperty FullName
 }
 
 # Print a summary of all paths that will be used
