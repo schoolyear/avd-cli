@@ -8,6 +8,7 @@ import (
 	"github.com/friendsofgo/errors"
 	"github.com/schoolyear/avd-cli/embeddedfiles"
 	"github.com/schoolyear/avd-cli/lib"
+	"github.com/schoolyear/avd-cli/static"
 	avdimagetypes "github.com/schoolyear/avd-image-types"
 	"github.com/urfave/cli/v2"
 	"io"
@@ -16,6 +17,8 @@ import (
 	"path/filepath"
 	"strings"
 )
+
+const layerPropertiesFilename = "properties" // (either json or json5)
 
 var BundleLayersCommand = &cli.Command{
 	Name:  "layers",
@@ -28,17 +31,24 @@ var BundleLayersCommand = &cli.Command{
 			TakesFile: true,
 			Aliases:   []string{"l"},
 		},
-		&cli.StringFlag{
-			Name:      "bundle-output",
-			Usage:     "Path to which the bundle output should be written",
+		&cli.PathFlag{
+			Name:      "bundle-archive",
+			Usage:     "Path where the bundle archive will be created",
 			TakesFile: true,
 			Aliases:   []string{"o"},
 			Value:     "bundle.zip",
 		},
+		&cli.PathFlag{
+			Name:      "bundle-properties",
+			Usage:     "Path to which the bundle properties output should be written. Skipped if not set.",
+			TakesFile: true,
+			Aliases:   []string{"p"},
+		},
 	},
 	Action: func(c *cli.Context) error {
 		layerPaths := c.StringSlice("layer")
-		bundleOutput := c.String("bundle-output")
+		bundleOutput := c.Path("bundle-archive")
+		bundleProperties := c.Path("bundle-properties")
 
 		fmt.Println("Validating layers:")
 
@@ -81,6 +91,8 @@ var BundleLayersCommand = &cli.Command{
 			layers = append(layers, *properties)
 		}
 
+		// todo: add base layer
+
 		if allValid {
 			fmt.Println("All layers are valid")
 		} else {
@@ -95,7 +107,15 @@ var BundleLayersCommand = &cli.Command{
 		fmt.Println("")
 		showBaseImage(layers)
 
-		// todo: output bundle properties
+		fmt.Println()
+
+		if bundleProperties == "" {
+			fmt.Println("Not creating the bundle properties file. Set -bundle-properties (-p) to write it to disk.")
+		} else {
+			if err := writeBundleProperties(layers, bundleProperties); err != nil {
+				return errors.Wrap(err, "failed to write bundle properties file")
+			}
+		}
 
 		return nil
 	},
@@ -111,7 +131,7 @@ func validateLayerPath(layerPath string) (*avdimagetypes.V2LayerProperties, erro
 		return nil, fmt.Errorf("layer path %s is not a directory", layerPath)
 	}
 
-	propertiesJson, _, err := lib.ReadJSONOrJSON5AsJSON(os.DirFS(layerPath), "properties")
+	propertiesJson, _, err := lib.ReadJSONOrJSON5AsJSON(os.DirFS(layerPath), layerPropertiesFilename)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read properties file")
 	}
@@ -139,7 +159,7 @@ func validateLayerPath(layerPath string) (*avdimagetypes.V2LayerProperties, erro
 	return &properties, nil
 }
 
-var defaultBaseImage = avdimagetypes.V2LayerPropertiesBaseImage{
+var defaultBaseImage = &avdimagetypes.V2LayerPropertiesBaseImage{
 	PlatformImage: &avdimagetypes.PlatformImage{
 		Type:      avdimagetypes.PlatformImageTypePlatformImage,
 		Publisher: "microsoftwindowsdesktop",
@@ -160,21 +180,21 @@ func showBaseImage(layers []avdimagetypes.V2LayerProperties) {
 
 	switch len(layerIdsWithBaseImageDefinition) {
 	case 0:
-		fmt.Printf("No layer explicitly defines a base iamge, so we recommending building the image using this base image: \n\t%s\n", baseImageToString(defaultBaseImage))
+		fmt.Printf("No layer explicitly defines a base image, so we recommending building the image using this base image: \n\t%s\n", baseImageToString(defaultBaseImage))
 	case 1:
 		layer := layers[layerIdsWithBaseImageDefinition[0]]
-		fmt.Printf("The layer %s defines the following base-image: \n%s\n", layer.Name, baseImageToString(*layer.BaseImage))
+		fmt.Printf("The layer %s defines the following base-image: \n\t%s\n", layer.Name, baseImageToString(layer.BaseImage))
 	default:
 		fmt.Println("Multiple layers define a base image")
 		for _, layerId := range layerIdsWithBaseImageDefinition {
 			layer := layers[layerId]
-			fmt.Printf("\t- Layer %s\n: %s", layer.Name, baseImageToString(*layer.BaseImage))
+			fmt.Printf("\t- Layer %s\n: %s", layer.Name, baseImageToString(layer.BaseImage))
 		}
 		fmt.Println("You have to decide which one to use")
 	}
 }
 
-func baseImageToString(image avdimagetypes.V2LayerPropertiesBaseImage) string {
+func baseImageToString(image *avdimagetypes.V2LayerPropertiesBaseImage) string {
 	switch {
 	case image.PlatformImage != nil:
 		return fmt.Sprintf("Platform Image: %s/%s/%s:%s",
@@ -211,7 +231,7 @@ func copyLayersIntoBundle(layers []avdimagetypes.V2LayerProperties, layerPaths [
 	if _, err := executeFile.Write(embeddedfiles.V2ExecuteScript); err != nil {
 		return errors.Wrap(err, "failed to write execute script to the bundle")
 	}
-	fmt.Printf("[Done]\n")
+	fmt.Printf("[DONE]\n")
 
 	for i, layerPath := range layerPaths {
 		layerName := fmt.Sprintf("%03d-%s", i+1, layers[i].Name)
@@ -220,7 +240,7 @@ func copyLayersIntoBundle(layers []avdimagetypes.V2LayerProperties, layerPaths [
 		if err := copyLayerToBundle(zipWriter, layerName, layerPath); err != nil {
 			return errors.Wrapf(err, "failed to copy layer %s to the bundle zip file", layerName)
 		}
-		fmt.Printf("[Done]\n")
+		fmt.Printf("[DONE]\n")
 	}
 
 	fmt.Printf("Saved the bundle to: %s\n", targetPath)
@@ -270,4 +290,28 @@ func copyLayerToBundle(zipFile *zip.Writer, layerName string, layerPath string) 
 		_, err = io.Copy(fw, f)
 		return err
 	})
+}
+
+func writeBundleProperties(layers []avdimagetypes.V2LayerProperties, path string) error {
+	fmt.Printf("Creating the bundle properties file...")
+
+	bundle := avdimagetypes.V2BundleProperties{
+		Version:    avdimagetypes.V2BundlePropertiesVersionV2,
+		CliVersion: static.Version,
+		Layers:     layers,
+	}
+
+	propFile, err := os.Create(path)
+	if err != nil {
+		return errors.Wrap(err, "failed to create file")
+	}
+	defer propFile.Close()
+
+	encoder := json.NewEncoder(propFile)
+	encoder.SetIndent("", "\t")
+	if err := encoder.Encode(bundle); err != nil {
+		return errors.Wrap(err, "failed to write to file")
+	}
+	fmt.Printf("[DONE]: %s\n", path)
+	return nil
 }
