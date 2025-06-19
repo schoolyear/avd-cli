@@ -116,7 +116,7 @@ func validateLayerPath(layerPath string) (*avdimagetypes.V2LayerProperties, erro
 		return nil, errors.Wrap(err, "failed to read properties file")
 	}
 
-	validationResult, err := avdimagetypes.ValidateV2Properties(propertiesJson)
+	validationResult, err := avdimagetypes.ValidateDefinition(avdimagetypes.V2LayerPropertiesDefinition, propertiesJson)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to validate properties file")
 	}

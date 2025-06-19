@@ -5,6 +5,7 @@
     name: 'John Doe (example org)',
     email: 'j.doe@example.com'
   },
+  platform_version: "2",
   network: {
     // HTTP(s) hosts that are whitelisted in the proxy
     // note that the application must be configured to use the proxy or support Windows IE proxy settings
