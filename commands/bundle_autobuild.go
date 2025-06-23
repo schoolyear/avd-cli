@@ -74,9 +74,8 @@ var BundleAutoDeployCommand = &cli.Command{
 			Aliases:  []string{"bc"},
 		},
 		&cli.StringFlag{
-			Name:     "template-name",
-			Usage:    "Overwrite the name of the Image Template (defaults to [image-definition]-[timestamp]). Note that the operation will fail if this name is already taken.",
-			Required: true,
+			Name:  "template-name",
+			Usage: "Overwrite the name of the Image Template (defaults to [image-definition]-[timestamp]). Note that the operation will fail if this name is already taken.",
 		},
 		&cli.StringSliceFlag{
 			Name:     "replication-regions",
@@ -259,7 +258,7 @@ var BundleAutoDeployCommand = &cli.Command{
 		fmt.Println("")
 
 		if templateName == "" {
-			templateName = fmt.Sprintf("%s-%s", imageDefinition, time.Now().Format(time.DateTime))
+			templateName = fmt.Sprintf("%s-%s", imageDefinition, time.Now().Format("2006-01-02_15-04-05"))
 			fmt.Printf("Defaulting template name to %s. Overwrite using --template-name.\n", templateName)
 		} else {
 			fmt.Printf("Using template name: %s (Note: overwriting an existing template will fail)\n", templateName)
@@ -283,7 +282,7 @@ var BundleAutoDeployCommand = &cli.Command{
 		)
 
 		deploymentTemplate := buildDeploymentTemplate(imageTemplate)
-		deploymentTemplateBytes, err := json.MarshalIndent(deploymentTemplate, "", "    ")
+		deploymentTemplateBytes, err := json.MarshalIndent(deploymentTemplate, "", "\t")
 		if err != nil {
 			return errors.Wrap(err, "failed to stringify deployment template")
 		}

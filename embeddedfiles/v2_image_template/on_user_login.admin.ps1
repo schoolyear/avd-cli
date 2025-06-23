@@ -17,3 +17,6 @@ Param (
     [Parameter(Mandatory = $true)]
     [string]$homedir       # Absolute path to the user's home directory
 )
+
+$ErrorActionPreference = "Stop"
+Set-StrictMode -Version Latest

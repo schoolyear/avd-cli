@@ -20,3 +20,25 @@ Param (
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+$proxyDomain = "proxies.local"
+
+$proxyBytes = [System.Text.Encoding]::UTF8.GetBytes("PROXY $($proxyDomain):8080")
+$proxyStringBase64 = [Convert]::ToBase64String($proxyBytes)
+$matchingProxyBase64 = $proxyStringBase64.Replace('+','-').Replace('/','_').TrimEnd('=')
+$pacUrl = "http://${proxyDomain}:8080/proxy.pac?matchingProxyBase64=$matchingProxyBase64&defaultProxy=DIRECT"
+
+try
+{
+    Write-Host "Setting user-level proxy..."
+    $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings"
+
+    Set-ItemProperty -Path $regPath -Name AutoConfigURL -Value "$pacUrl"
+    Set-ItemProperty -Path $regPath -Name ProxyEnable -Value 1
+    netsh winhttp import proxy source=ie
+}
+catch
+{
+    Write-Error "Could not set user-level proxy: $_"
+    exit 1
+}

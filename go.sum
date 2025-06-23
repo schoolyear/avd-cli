@@ -99,6 +99,8 @@ github.com/schoolyear/avd-image-types v0.0.14 h1:xQB+cx2iferyxxp9fYkBi1B4fX3pN5M
 github.com/schoolyear/avd-image-types v0.0.14/go.mod h1:D6h1TrvWO+loQDtAG0xoWwwArE1ocgOMffT0FgkCMeI=
 github.com/schoolyear/avd-image-types v0.0.15 h1:2apj4rfUuZlM4MMsheLJLvveaOsST0sb2e1JIsQyC8w=
 github.com/schoolyear/avd-image-types v0.0.15/go.mod h1:D6h1TrvWO+loQDtAG0xoWwwArE1ocgOMffT0FgkCMeI=
+github.com/schoolyear/avd-image-types v0.0.16 h1:0IcJ9KVve5yMwrOF1FgQuX6kd4BYCMzxFSXuDm9V08o=
+github.com/schoolyear/avd-image-types v0.0.16/go.mod h1:D6h1TrvWO+loQDtAG0xoWwwArE1ocgOMffT0FgkCMeI=
 github.com/speakeasy-api/jsonpath v0.6.2 h1:Mys71yd6u8kuowNCR0gCVPlVAHCmKtoGXYoAtcEbqXQ=
 github.com/speakeasy-api/jsonpath v0.6.2/go.mod h1:ymb2iSkyOycmzKwbEAYPJV/yi2rSmvBCLZJcyD+VVWw=
 github.com/spkg/bom v0.0.0-20160624110644-59b7046e48ad/go.mod h1:qLr4V1qq6nMqFKkMo8ZTx3f+BZEkzsRUY10Xsm2mwU0=

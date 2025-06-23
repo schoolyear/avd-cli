@@ -17,6 +17,52 @@ param (
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+## Add detailed error handling helper function
+function Write-ExceptionDetails {
+    param (
+        [Parameter(Mandatory=$true, ValueFromPipeline=$true)]
+        [System.Management.Automation.ErrorRecord]$ErrorRecord
+    )
+
+    process {
+        Write-Host "=== EXCEPTION DETAILS ===" -ForegroundColor Red
+        Write-Host "Error Message: $($ErrorRecord.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "Exception Type: $($ErrorRecord.Exception.GetType().FullName)" -ForegroundColor Yellow
+
+        Write-Host "`n=== ERROR RECORD DETAILS ===" -ForegroundColor Red
+        Write-Host "CategoryInfo: $($ErrorRecord.CategoryInfo)" -ForegroundColor Yellow
+        Write-Host "FullyQualifiedErrorId: $($ErrorRecord.FullyQualifiedErrorId)" -ForegroundColor Yellow
+
+        if ($ErrorRecord.ScriptStackTrace) {
+            Write-Host "`n=== SCRIPT STACK TRACE ===" -ForegroundColor Red
+            Write-Host $ErrorRecord.ScriptStackTrace -ForegroundColor Yellow
+        }
+
+        if ($ErrorRecord.Exception.StackTrace) {
+            Write-Host "`n=== EXCEPTION STACK TRACE ===" -ForegroundColor Red
+            Write-Host $ErrorRecord.Exception.StackTrace -ForegroundColor Yellow
+        }
+
+        if ($ErrorRecord.Exception.InnerException) {
+            Write-Host "`n=== INNER EXCEPTION ===" -ForegroundColor Red
+            Write-Host "Message: $($ErrorRecord.Exception.InnerException.Message)" -ForegroundColor Yellow
+            Write-Host "Type: $($ErrorRecord.Exception.InnerException.GetType().FullName)" -ForegroundColor Yellow
+
+            if ($ErrorRecord.Exception.InnerException.StackTrace) {
+                Write-Host "`n=== INNER EXCEPTION STACK TRACE ===" -ForegroundColor Red
+                Write-Host $ErrorRecord.Exception.InnerException.StackTrace -ForegroundColor Yellow
+            }
+        }
+
+        # Additional PowerShell specific details
+        Write-Host "`n=== INVOCATION INFO ===" -ForegroundColor Red
+        Write-Host "ScriptName: $($ErrorRecord.InvocationInfo.ScriptName)" -ForegroundColor Yellow
+        Write-Host "Line Number: $($ErrorRecord.InvocationInfo.ScriptLineNumber)" -ForegroundColor Yellow
+        Write-Host "Position Message: $($ErrorRecord.InvocationInfo.PositionMessage)" -ForegroundColor Yellow
+        Write-Host "Line: $($ErrorRecord.InvocationInfo.Line)" -ForegroundColor Yellow
+    }
+}
+
 # Validate parameters: either LayerPaths or ScanForDirectories must be set, but not both
 if (($LayerPaths -and $ScanForDirectories) -or (-not $LayerPaths -and -not $ScanForDirectories)) {
     Write-Host "Error: You must specify either -LayerPaths or -ScanForDirectories, but not both." -ForegroundColor Red
@@ -47,13 +93,11 @@ $LayerNames = @{}
 Write-Host "`nValidating layers..."
 
 foreach ($path in $LayerPaths) {
-    $isValid = $true
     $validationErrors = @()
     $layerName = ""
 
     # Check if the path exists
     if (-not (Test-Path -Path $path)) {
-        $isValid = $false
         $validationErrors += "Path does not exist"
     } else {
         # Check if properties file exists (either json or json5)
@@ -68,7 +112,6 @@ foreach ($path in $LayerPaths) {
         }
 
         if (-not $propertiesPath) {
-            $isValid = $false
             $validationErrors += "Missing properties.json or properties.json5 file"
         } else {
             # Read and validate properties file
@@ -91,37 +134,32 @@ foreach ($path in $LayerPaths) {
 
                 # Validate version
                 if (-not $properties.version -or $properties.version -ne "v2") {
-                    $isValid = $false
                     $validationErrors += "Invalid or missing 'version' property. Must be 'v2'"
                 }
 
                 # Validate name
                 if (-not $properties.name -or $properties.name -eq "") {
-                    $isValid = $false
                     $validationErrors += "Missing or empty 'name' property"
                 } elseif ($properties.name -notmatch '^[a-zA-Z0-9-.]+$') {
-                    $isValid = $false
                     $validationErrors += "'name' property must only contain alphanumeric characters and dashes"
                 } else {
                     $layerName = $properties.name
 
                     # Check name uniqueness
                     if ($LayerNames.ContainsKey($layerName)) {
-                        $isValid = $false
                         $validationErrors += "Duplicate layer name '$layerName' also found in $($LayerNames[$layerName])"
                     } else {
                         $LayerNames[$layerName] = $path
                     }
                 }
             } catch {
-                $isValid = $false
                 $validationErrors += "Error parsing properties file: $($_.Exception.Message)"
             }
         }
     }
 
     # Print validation result
-    if ($isValid) {
+    if ($validationErrors.Count -eq 0) {
         Write-Host " - ${path}: " -NoNewline
         Write-Host "[Valid]" -ForegroundColor Green -NoNewline
         Write-Host " Layer: $layerName"
@@ -186,7 +224,10 @@ foreach ($layer in $ValidLayers) {
         }
         catch
         {
-            Write-Error "Installation script error: $( $_.Exception.Message )"
+            Write-Host "Error occurred in installation script for layer " -NoNewline -ForegroundColor Red
+            Write-Host "$( $layerName )" -NoNewline -ForegroundColor Magenta;
+            Write-Host ":" -ForegroundColor Red
+            $_ | Write-ExceptionDetails
             exit 1
         }
     }

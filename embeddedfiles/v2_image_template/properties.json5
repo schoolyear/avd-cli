@@ -1,6 +1,7 @@
 {
   version: 'v2',
   name: 'com.example.imagename',
+  description: "Example description: short note on what this layer does",
   author: {
     name: 'John Doe (example org)',
     email: 'j.doe@example.com'
