@@ -19,7 +19,6 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -303,7 +302,8 @@ var BundleAutoDeployCommand = &cli.Command{
 		fmt.Println("[DONE]")
 
 		fmt.Println()
-		if err := writeBundleProperties(layers, bundlePropertiesPath); err != nil {
+		// todo: nil value
+		if err := writeBundleProperties(layers, nil, bundlePropertiesPath); err != nil {
 			return errors.Wrap(err, "failed to write bundle properties file")
 		}
 		fmt.Println("")
@@ -379,18 +379,8 @@ func validateBundle(bundlePath string) ([]avdimagetypes.V2LayerProperties, error
 			validationErrors = append(validationErrors, errors.Wrapf(err, "failed to read properties file of layer %s", layerName))
 			continue
 		} else {
-			validationResult, err := avdimagetypes.ValidateDefinition(avdimagetypes.V2LayerPropertiesDefinition, propsBytes)
-			if err != nil {
-				validationErrors = append(validationErrors, errors.Wrapf(err, "failed to validate layer %s", layerName))
-			} else if !validationResult.Valid() {
-				resultErrors := validationResult.Errors()
-				propsValidationErrors := make([]error, len(resultErrors))
-				for i, validationError := range resultErrors {
-					propsValidationErrors[i] = errors.New(validationError.String())
-				}
-
-				propsValidationErr := errors.Wrapf(stdErr.Join(propsValidationErrors...), "invalid properties file of layer %s", layerName)
-				validationErrors = append(validationErrors, propsValidationErr)
+			if err := lib.ValidateAVDImageType(avdimagetypes.V2LayerPropertiesDefinition, propsBytes); err != nil {
+				validationErrors = append(validationErrors, errors.Wrapf(err, "invalid properties file of layer %s", layerName))
 			} else {
 				var properties avdimagetypes.V2LayerProperties
 				if err := json.Unmarshal(propsBytes, &properties); err != nil {
@@ -444,24 +434,18 @@ func selectBaseImage(layers []avdimagetypes.V2LayerProperties, preselectedLayerN
 		return layer.BaseImage, nil
 	default:
 		fmt.Println("Multiple layers define a base image")
+
+		options := make([]string, len(layerIdxsWithBaseImage))
 		for i, layerIdx := range layerIdxsWithBaseImage {
 			layer := layers[layerIdx]
-			fmt.Printf("\t- %d: Layer %s\n: %s", i+1, layer.Name, baseImageToString(layer.BaseImage))
+			options[i] = fmt.Sprintf("\t- %d: Layer %s\n: %s", i+1, layer.Name, baseImageToString(layer.BaseImage))
 		}
-		selectionStr, err := lib.PromptUserInput("[Select the base image to use]: ")
+		idx, err := lib.PromptEnum("Select the base image to use", options, "", nil)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to read the user input")
-		}
-		selection, err := strconv.Atoi(selectionStr)
-		if err != nil {
-			return nil, errors.Wrap(err, "invalid input")
+			return nil, err
 		}
 
-		if selection > len(layerIdxsWithBaseImage) || selection < 1 {
-			return nil, fmt.Errorf("invalid selection %d", selection)
-		}
-
-		layer := layers[layerIdxsWithBaseImage[selection-1]]
+		layer := layers[layerIdxsWithBaseImage[idx]]
 		fmt.Printf("Layer %s selected: \n%s\n", layer.Name, baseImageToString(layer.BaseImage))
 		return layer.BaseImage, nil
 	}
@@ -471,23 +455,17 @@ func selectImageDefinition(existingImageDefinitions []lib.AzImageDefinition) (na
 	fmt.Println("You did not specify an Image Definition, please select an existing one")
 	fmt.Println("You can create a Image Definition in the Azure Portal")
 	fmt.Println("To select an image definition non-interactively, pass the --image-definition flag")
+
+	options := make([]string, len(existingImageDefinitions))
 	for i, def := range existingImageDefinitions {
-		fmt.Printf("[%d]: %s\n", i+1, def.Name)
+		options[i] = fmt.Sprintf("[%d]: %s\n", i+1, def.Name)
 	}
-	selectionStr, err := lib.PromptUserInput("[Select an Image Definition]: ")
+	idx, err := lib.PromptEnum("Select an Image Definition", nil, "", nil)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to read the user input")
-	}
-	selection, err := strconv.Atoi(selectionStr)
-	if err != nil {
-		return "", errors.Wrap(err, "invalid input")
+		return "", err
 	}
 
-	if selection > len(existingImageDefinitions) || selection < 1 {
-		return "", fmt.Errorf("invalid selection %d", selection)
-	}
-
-	return existingImageDefinitions[selection-1].Name, nil
+	return existingImageDefinitions[idx].Name, nil
 }
 
 func calcBundleShaAndSize(filepath string) ([]byte, error) {

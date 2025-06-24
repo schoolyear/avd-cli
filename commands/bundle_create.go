@@ -3,9 +3,9 @@ package commands
 import (
 	"archive/zip"
 	"encoding/json"
-	stdErr "errors"
 	"fmt"
 	"github.com/friendsofgo/errors"
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/schoolyear/avd-cli/embeddedfiles"
 	"github.com/schoolyear/avd-cli/lib"
 	"github.com/schoolyear/avd-cli/schema"
@@ -33,6 +33,17 @@ var BundleLayersCommand = &cli.Command{
 			Aliases:   []string{"l"},
 		},
 		&cli.PathFlag{
+			Name:      "parameters",
+			Usage:     "Path to a JSON file to pre-fill parameters",
+			TakesFile: true,
+			Aliases:   []string{"p"},
+		},
+		&cli.BoolFlag{
+			Name:    "noninteractive",
+			Usage:   "Set if you want to use non-interactive mode. Command will fail if interactivity is required.",
+			Aliases: []string{"ni"},
+		},
+		&cli.PathFlag{
 			Name:      "bundle-archive",
 			Usage:     "Path where the bundle archive will be created",
 			TakesFile: true,
@@ -43,85 +54,26 @@ var BundleLayersCommand = &cli.Command{
 			Name:      "bundle-properties",
 			Usage:     "Path to which the bundle properties output should be written. Skipped if not set.",
 			TakesFile: true,
-			Aliases:   []string{"p"},
+			Aliases:   []string{"b"},
 		},
 	},
 	Action: func(c *cli.Context) error {
 		layerPaths := c.StringSlice("layer")
+		parameterFile := c.Path("parameters")
+		noninteractive := c.Bool("noninteractive")
 		bundleOutput := c.Path("bundle-archive")
 		bundleProperties := c.Path("bundle-properties")
 
-		layersToBundle := make([]layerToBundle, 0, len(layerPaths)+1)
-
-		layersToBundle = append(layersToBundle, layerToBundle{
-			originalPathName: "default layer (built-in)",
-			path:             embeddedfiles.V2DefaultLayerBasePath,
-			fs:               embeddedfiles.V2DefaultLayer,
-		})
-
-		for _, path := range layerPaths {
-			dirPath := filepath.Dir(path)
-			dirFS := os.DirFS(dirPath)
-			layersToBundle = append(layersToBundle, layerToBundle{
-				originalPathName: path,
-				path:             filepath.Base(path),
-				fs:               dirFS,
-			})
+		layers, err := validateLayers(layerPaths)
+		if err != nil {
+			return errors.Wrap(err, "failed to load and validate layers")
 		}
 
-		fmt.Println("Validating layers:")
-
-		layers := make([]validatedLayer, 0, len(layersToBundle))
-		names := map[string]struct{}{}
-		allValid := true
-		for i, layerToBundle := range layersToBundle {
-			fmt.Printf("\t- Layer %d: %s: ", i+1, layerToBundle.originalPathName)
-
-			layer, err := validateLayer(layerToBundle)
-			if err != nil {
-				allValid = false
-				fmt.Printf("[Invalid]: \n\t\t%s\n", strings.ReplaceAll(err.Error(), "\n", "\n\t\t"))
-				continue
-			}
-
-			if _, exists := names[layer.properties.Name]; exists {
-				allValid = false
-				fmt.Printf("[Invalid]: layer name must be unique. %s already exists\n", layer.properties.Name)
-				continue
-			} else {
-				names[layer.properties.Name] = struct{}{}
-			}
-
-			fmt.Printf("[Valid]: %s\n", layer.properties.Name)
-
-			filesToCheck := []string{
-				schema.V2InstallScriptFilename,
-				schema.V2OnSessionHostSetupScriptFilename,
-				schema.V2OnUserLoginAdminScriptFilename,
-				schema.V2OnUserLoginUserScriptFilename,
-			}
-			for _, filename := range filesToCheck {
-				filePath := filepath.Join(layerToBundle.path, filename)
-				var status string
-				_, err := fs.Stat(layerToBundle.fs, filePath)
-				if err == nil {
-					status = "[Found]"
-				} else if os.IsNotExist(err) {
-					status = "[Not Found, but not required]"
-				} else {
-					status = fmt.Sprintf("[Error]: %s", err)
-					allValid = false
-				}
-				fmt.Printf("\t\t%s: %s\n", filename, status)
-			}
-
-			layers = append(layers, *layer)
-		}
-
-		if allValid {
-			fmt.Println("All layers are valid")
-		} else {
-			return errors.New("all layers must be valid to continue")
+		fmt.Println()
+		fmt.Println("Resolving parameters")
+		buildParameters, err := resolveLayerParameters(layers, parameterFile, noninteractive)
+		if err != nil {
+			return errors.Wrap(err, "failed to resolve parameters")
 		}
 
 		fmt.Println("")
@@ -141,7 +93,7 @@ var BundleLayersCommand = &cli.Command{
 			for i, layer := range layers {
 				layerProperties[i] = *layer.properties
 			}
-			if err := writeBundleProperties(layerProperties, bundleProperties); err != nil {
+			if err := writeBundleProperties(layerProperties, buildParameters, bundleProperties); err != nil {
 				return errors.Wrap(err, "failed to write bundle properties file")
 			}
 		}
@@ -161,6 +113,83 @@ type validatedLayer struct {
 	properties *avdimagetypes.V2LayerProperties
 }
 
+func validateLayers(layerPaths []string) ([]validatedLayer, error) {
+	layersToBundle := make([]layerToBundle, 0, len(layerPaths)+1)
+
+	layersToBundle = append(layersToBundle, layerToBundle{
+		originalPathName: "default layer (built-in)",
+		path:             embeddedfiles.V2DefaultLayerBasePath,
+		fs:               embeddedfiles.V2DefaultLayer,
+	})
+
+	for _, path := range layerPaths {
+		dirPath := filepath.Dir(path)
+		dirFS := os.DirFS(dirPath)
+		layersToBundle = append(layersToBundle, layerToBundle{
+			originalPathName: path,
+			path:             filepath.Base(path),
+			fs:               dirFS,
+		})
+	}
+
+	fmt.Println("Validating layers:")
+
+	layers := make([]validatedLayer, 0, len(layersToBundle))
+	names := map[string]struct{}{}
+	allValid := true
+	for i, layerToBundle := range layersToBundle {
+		fmt.Printf("\t- Layer %d: %s: ", i+1, layerToBundle.originalPathName)
+
+		layer, err := validateLayer(layerToBundle)
+		if err != nil {
+			allValid = false
+			fmt.Printf("[Invalid]: \n\t\t%s\n", strings.ReplaceAll(err.Error(), "\n", "\n\t\t"))
+			continue
+		}
+
+		if _, exists := names[layer.properties.Name]; exists {
+			allValid = false
+			fmt.Printf("[Invalid]: layer name must be unique. %s already exists\n", layer.properties.Name)
+			continue
+		} else {
+			names[layer.properties.Name] = struct{}{}
+		}
+
+		fmt.Printf("[Valid]: %s\n", layer.properties.Name)
+
+		filesToCheck := []string{
+			schema.V2InstallScriptFilename,
+			schema.V2OnSessionHostSetupScriptFilename,
+			schema.V2OnUserLoginAdminScriptFilename,
+			schema.V2OnUserLoginUserScriptFilename,
+		}
+		for _, filename := range filesToCheck {
+			filePath := filepath.Join(layerToBundle.path, filename)
+			var status string
+			_, err := fs.Stat(layerToBundle.fs, filePath)
+			if err == nil {
+				status = "[Found]"
+			} else if os.IsNotExist(err) {
+				status = "[Not Found, but not required]"
+			} else {
+				status = fmt.Sprintf("[Error]: %s", err)
+				allValid = false
+			}
+			fmt.Printf("\t\t%s: %s\n", filename, status)
+		}
+
+		layers = append(layers, *layer)
+	}
+
+	if allValid {
+		fmt.Println("All layers are valid")
+	} else {
+		return nil, errors.New("all layers must be valid to continue")
+	}
+
+	return layers, nil
+}
+
 func validateLayer(layer layerToBundle) (*validatedLayer, error) {
 	// check if dir exists
 	fileInfo, err := fs.Stat(layer.fs, layer.path)
@@ -176,19 +205,8 @@ func validateLayer(layer layerToBundle) (*validatedLayer, error) {
 		return nil, errors.Wrap(err, "failed to read properties file")
 	}
 
-	validationResult, err := avdimagetypes.ValidateDefinition(avdimagetypes.V2LayerPropertiesDefinition, propertiesJson)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to validate properties file")
-	}
-
-	if !validationResult.Valid() {
-		resultErrors := validationResult.Errors()
-		validationErrors := make([]error, len(resultErrors))
-		for i, validationError := range resultErrors {
-			validationErrors[i] = errors.New(validationError.String())
-		}
-
-		return nil, errors.Wrap(stdErr.Join(validationErrors...), "invalid properties file")
+	if err := lib.ValidateAVDImageType(avdimagetypes.V2LayerPropertiesDefinition, propertiesJson); err != nil {
+		return nil, errors.Wrap(err, "invalid properties file")
 	}
 
 	var properties *avdimagetypes.V2LayerProperties
@@ -200,6 +218,111 @@ func validateLayer(layer layerToBundle) (*validatedLayer, error) {
 		layerToBundle: layer,
 		properties:    properties,
 	}, nil
+}
+
+func resolveLayerParameters(layers []validatedLayer, parameterFilePath string, noninteractive bool) (map[string]map[string]avdimagetypes.BuildParameterValue, error) {
+	var prefilledParams map[string]map[string]avdimagetypes.BuildParameterValue
+
+	if parameterFilePath != "" {
+		data, err := os.ReadFile(parameterFilePath)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to read parameters file")
+		}
+
+		if err := lib.ValidateAVDImageType(avdimagetypes.V2BuildParametersDefinition, data); err != nil {
+			return nil, errors.Wrap(err, "failed to validate parameters file")
+		}
+
+		var paramFile avdimagetypes.V2BuildParameters
+		if err := json.Unmarshal(data, &paramFile); err != nil {
+			return nil, errors.Wrap(err, "failed to parse parameters file")
+		}
+
+		prefilledParams = paramFile.Layers
+	}
+
+	resolvedParameters := map[string]map[string]avdimagetypes.BuildParameterValue{}
+	fmt.Println("Resolving build parameters per layer:")
+	for _, layer := range layers {
+		fmt.Printf("\t- %s: %d parameter(s) to resolve\n", layer.properties.Name, len(layer.properties.BuildParameters))
+
+		for paramName, param := range layer.properties.BuildParameters {
+			fmt.Printf("\t\t- %s: ", paramName)
+
+			prefilled := getPrefilledParameter(prefilledParams, layer.properties.Name, paramName)
+			var value string
+			if prefilled != nil {
+				if len(param.Enum) > 0 {
+					if err := validation.Validate(prefilled.Value, validation.In(param.Enum)); err != nil {
+						return nil, errors.Wrapf(err, "invalid prefilled parameter: %s/%s", layer.properties.Name, paramName)
+					}
+				}
+				fmt.Printf("[PREFILLED]: %s\n", paramName)
+				value = prefilled.Value
+			} else if noninteractive {
+				return nil, fmt.Errorf("missing build parameter %s/%s, but running in noninteractive mode", layer.properties.Name, paramName)
+			} else if len(param.Enum) > 0 {
+				fmt.Println(param.Description)
+
+				options := make([]string, len(param.Enum))
+				var defaultIdx *int
+				for i, option := range param.Enum {
+					options[i] = option
+					if param.Default == option {
+						idx := i
+						defaultIdx = &idx
+					}
+				}
+				idx, err := lib.PromptEnum("Pick one", options, "\t\t\t", defaultIdx)
+				if err != nil {
+					return nil, err
+				}
+				value = param.Enum[idx]
+			} else {
+				fmt.Println(param.Description)
+
+				var defaultValue *string
+				if param.Default != "" {
+					defaultValue = &param.Default
+				}
+				input, err := lib.PromptUserInput("\t\t\tEnter a value: ", defaultValue)
+				if err != nil {
+					return nil, err
+				}
+
+				if err := lib.ValidateAVDImageType(avdimagetypes.V2BuildParameterValueDefinition, []byte(`"`+input+`"`)); err != nil {
+					return nil, errors.Wrap(err, "invalid build parameter value")
+				}
+				value = input
+			}
+
+			buildParamValue := avdimagetypes.BuildParameterValue{
+				Value: value,
+			}
+			if layerParams, ok := resolvedParameters[layer.properties.Name]; ok {
+				layerParams[paramName] = buildParamValue
+			} else {
+				layerParams := map[string]avdimagetypes.BuildParameterValue{
+					paramName: buildParamValue,
+				}
+				resolvedParameters[layer.properties.Name] = layerParams
+			}
+		}
+	}
+
+	return resolvedParameters, nil
+}
+
+func getPrefilledParameter(prefilledParams map[string]map[string]avdimagetypes.BuildParameterValue, layerName, paramName string) *avdimagetypes.BuildParameterValue {
+	layer, ok := prefilledParams[layerName]
+	if !ok {
+		return nil
+	}
+	param, ok := layer[paramName]
+	if !ok {
+		return nil
+	}
+	return &param
 }
 
 var defaultBaseImage = &avdimagetypes.V2LayerPropertiesBaseImage{
@@ -338,13 +461,14 @@ func copyLayerToBundle(zipFile *zip.Writer, layerName string, sourceFS fs.FS, so
 	})
 }
 
-func writeBundleProperties(layers []avdimagetypes.V2LayerProperties, path string) error {
+func writeBundleProperties(layers []avdimagetypes.V2LayerProperties, buildParameters map[string]map[string]avdimagetypes.BuildParameterValue, path string) error {
 	fmt.Printf("Creating the bundle properties file...")
 
 	bundle := avdimagetypes.V2BundleProperties{
-		Version:    avdimagetypes.V2BundlePropertiesVersionV2,
-		CliVersion: static.Version,
-		Layers:     layers,
+		Version:         avdimagetypes.V2BundlePropertiesVersionV2,
+		CliVersion:      static.Version,
+		Layers:          layers,
+		BuildParameters: buildParameters,
 	}
 
 	propFile, err := os.Create(path)

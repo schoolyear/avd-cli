@@ -65,7 +65,7 @@ var UpdateCommand = &cli.Command{
 		fmt.Printf("Install to:\t%s\n", execPath)
 
 		if !yesFlag {
-			selected, err := lib.PromptUserInput("Do you want to download & intall the update (yes/no): ")
+			selected, err := lib.PromptUserInput("Do you want to download & install the update (yes/no): ", nil)
 			if err != nil {
 				return errors.Wrap(err, "failed to prompt user for input")
 			}

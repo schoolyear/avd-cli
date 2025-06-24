@@ -78,5 +78,18 @@
       // - `*.sfx.ms` we do not want Onedrive to start updating during an exam
       // - `graph.microsoft.com:443` provides access to online files in Office. Sadly, this also means that we don't show profile pictures in Office.
     ],
+  },
+  build_parameters: {
+    environment: {
+      description: "Which Schoolyear environment to build the image for. Default: prod",
+      enum: [
+        "Development",
+        "Testing",
+        "Beta",
+        "Production",
+        "Production"
+      ],
+      default: "Production"
+    },
   }
 }
