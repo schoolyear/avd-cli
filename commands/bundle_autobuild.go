@@ -482,9 +482,9 @@ func selectImageDefinition(existingImageDefinitions []lib.AzImageDefinition) (na
 
 	options := make([]string, len(existingImageDefinitions))
 	for i, def := range existingImageDefinitions {
-		options[i] = fmt.Sprintf("[%d]: %s\n", i+1, def.Name)
+		options[i] = def.Name
 	}
-	idx, err := lib.PromptEnum("Select an Image Definition", nil, "", nil)
+	idx, err := lib.PromptEnum("Select an Image Definition", options, "", nil)
 	if err != nil {
 		return "", err
 	}
