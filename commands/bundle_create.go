@@ -71,13 +71,17 @@ var BundleLayersCommand = &cli.Command{
 
 		fmt.Println()
 		fmt.Println("Resolving parameters")
-		buildParameters, err := resolveLayerParameters(layers, parameterFile, noninteractive)
+		resolvedParameters, err := resolveLayerParameters(layers, parameterFile, noninteractive)
 		if err != nil {
 			return errors.Wrap(err, "failed to resolve parameters")
 		}
 
 		fmt.Println("")
-		if err := copyLayersIntoBundle(layers, bundleOutput); err != nil {
+		buildParameters := avdimagetypes.V2BuildParameters{
+			Version: avdimagetypes.V2BuildParametersVersionV2,
+			Layers:  resolvedParameters,
+		}
+		if err := copyLayersIntoBundle(layers, buildParameters, bundleOutput); err != nil {
 			return errors.Wrap(err, "failed to copy layers into the bundle file")
 		}
 
@@ -93,7 +97,7 @@ var BundleLayersCommand = &cli.Command{
 			for i, layer := range layers {
 				layerProperties[i] = *layer.properties
 			}
-			if err := writeBundleProperties(layerProperties, buildParameters, bundleProperties); err != nil {
+			if err := writeBundleProperties(layerProperties, resolvedParameters, bundleProperties); err != nil {
 				return errors.Wrap(err, "failed to write bundle properties file")
 			}
 		}
@@ -377,7 +381,7 @@ func baseImageToString(image *avdimagetypes.V2LayerPropertiesBaseImage) string {
 	}
 }
 
-func copyLayersIntoBundle(layers []validatedLayer, targetPath string) error {
+func copyLayersIntoBundle(layers []validatedLayer, buildParams avdimagetypes.V2BuildParameters, targetPath string) error {
 	fmt.Println("Creating the bundle file:")
 
 	bundleFile, err := os.Create(targetPath)
@@ -396,6 +400,21 @@ func copyLayersIntoBundle(layers []validatedLayer, targetPath string) error {
 	}
 	if _, err := executeFile.Write(embeddedfiles.V2ExecuteScript); err != nil {
 		return errors.Wrap(err, "failed to write execute script to the bundle")
+	}
+	fmt.Printf("[DONE]\n")
+
+	fmt.Printf("\t- Adding %s...", schema.V2BuildParametersFilename)
+	buildParamsData, err := json.MarshalIndent(buildParams, "", "\t")
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal build parameters to JSON")
+	}
+
+	buildParamsFile, err := zipWriter.Create(schema.V2BuildParametersFilename)
+	if err != nil {
+		return errors.Wrap(err, "failed to create the build parameters file in the bundle")
+	}
+	if _, err := buildParamsFile.Write(buildParamsData); err != nil {
+		return errors.Wrap(err, "failed to write the build parameters file to the bundle")
 	}
 	fmt.Printf("[DONE]\n")
 

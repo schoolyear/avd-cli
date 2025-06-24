@@ -86,7 +86,6 @@
         "Development",
         "Testing",
         "Beta",
-        "Production",
         "Production"
       ],
       default: "Production"
