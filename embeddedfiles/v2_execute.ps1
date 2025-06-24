@@ -231,6 +231,22 @@ if (-not $Force) {
     }
 }
 
+## Create script directories once before processing any layers
+Write-Host "`nCreating script directories...`n"
+$setupScriptDestDir = "C:\SessionhostScripts"
+$userAdminScriptDestDir = "C:\Scripts"
+$userScriptDestDir = "C:\UserScripts"
+
+# Create directories if they don't exist
+foreach ($dir in @($setupScriptDestDir, $userAdminScriptDestDir, $userScriptDestDir)) {
+    if (-not (Test-Path -Path $dir)) {
+        Write-Host " - Creating directory: $dir"
+        New-Item -Path $dir -ItemType Directory -Force | Out-Null
+    } else {
+        Write-Host " - Directory already exists: $dir"
+    }
+}
+
 ## Execute each layer directory one by one
 Write-Host "`nProcessing layers...`n"
 
@@ -299,15 +315,9 @@ foreach ($layer in $ValidLayers) {
 
     # Move setup script
     $setupScriptPath = Join-Path -Path $layerPath -ChildPath "on_sessionhost_setup.ps1"
-    $setupScriptDestDir = "C:\SessionhostScripts"
     $setupScriptDestPath = Join-Path -Path $setupScriptDestDir -ChildPath "$layerName.ps1"
 
     if (Test-Path -Path $setupScriptPath) {
-        if (-not (Test-Path -Path $setupScriptDestDir)) {
-            Write-Host " - Creating directory: $setupScriptDestDir"
-            New-Item -Path $setupScriptDestDir -ItemType Directory -Force | Out-Null
-        }
-
         Write-Host " - Copying setup script to $setupScriptDestPath"
         Copy-Item -Path $setupScriptPath -Destination $setupScriptDestPath -Force
     } else {
@@ -316,15 +326,9 @@ foreach ($layer in $ValidLayers) {
 
     # Move user system script
     $userAdminScriptPath = Join-Path -Path $layerPath -ChildPath "on_user_login.admin.ps1"
-    $userAdminScriptDestDir = "C:\Scripts"
     $userAdminScriptDestPath = Join-Path -Path $userAdminScriptDestDir -ChildPath "$layerName.ps1"
 
     if (Test-Path -Path $userAdminScriptPath) {
-        if (-not (Test-Path -Path $userAdminScriptDestDir)) {
-            Write-Host " - Creating directory: $userAdminScriptDestDir"
-            New-Item -Path $userAdminScriptDestDir -ItemType Directory -Force | Out-Null
-        }
-
         Write-Host " - Copying user admin script to $userAdminScriptDestPath"
         Copy-Item -Path $userAdminScriptPath -Destination $userAdminScriptDestPath -Force
     } else {
@@ -333,15 +337,9 @@ foreach ($layer in $ValidLayers) {
 
     # Move user script
     $userScriptPath = Join-Path -Path $layerPath -ChildPath "on_user_login.user.ps1"
-    $userScriptDestDir = "C:\UserScripts"
     $userScriptDestPath = Join-Path -Path $userScriptDestDir -ChildPath "$layerName.ps1"
 
     if (Test-Path -Path $userScriptPath) {
-        if (-not (Test-Path -Path $userScriptDestDir)) {
-            Write-Host " - Creating directory: $userScriptDestDir"
-            New-Item -Path $userScriptDestDir -ItemType Directory -Force | Out-Null
-        }
-
         Write-Host " - Copying user script to $userScriptDestPath"
         Copy-Item -Path $userScriptPath -Destination $userScriptDestPath -Force
     } else {
