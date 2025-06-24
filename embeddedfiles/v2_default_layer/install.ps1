@@ -1,3 +1,9 @@
+param (
+    [Parameter(Mandatory=$true)]
+    [ValidateSet("Development", "Testing", "Beta", "Production")]
+    [string]$environment
+)
+
 # Recommended snippet to make sure PowerShell stops execution on failure
 # https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_preference_variables?view=powershell-7.5#erroractionpreference
 # https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/set-strictmode?view=powershell-7.4
@@ -66,5 +72,5 @@ Pop-Location
 
 # Install the Schoolyear VDI browser
 Push-Location; Write-Host "=== Executing InstallVDIBrowser.ps1 ==="
-& .\install\InstallVDIBrowser.ps1 # todo: download URL depending on environment
+& .\install\InstallVDIBrowser.ps1 -environment $environment
 Pop-Location

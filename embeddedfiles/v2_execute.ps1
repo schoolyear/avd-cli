@@ -10,12 +10,17 @@ param (
     [switch]$NoCleanup = $false,
 
     [Parameter(Mandatory=$false)]
-    [switch]$Force = $false
+    [switch]$Force = $false,
+
+    [Parameter(Mandatory=$false)]
+    [string]$BuildParametersPath = "build_parameters.json"
 )
 
 ## Make sure this script fails on an error and does not continue executing
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+Get-Host
 
 ## Add detailed error handling helper function
 function Write-ExceptionDetails {
@@ -69,6 +74,7 @@ if (($LayerPaths -and $ScanForDirectories) -or (-not $LayerPaths -and -not $Scan
     Write-Host "Usage examples:" -ForegroundColor Yellow
     Write-Host "  .\v2_execute.ps1 -LayerPaths '.\layer1','..\layer2','C:\layer3'" -ForegroundColor Yellow
     Write-Host "  .\v2_execute.ps1 -ScanForDirectories" -ForegroundColor Yellow
+    Write-Host "  .\v2_execute.ps1 -LayerPaths '.\layer1' -BuildParametersPath 'path\to\custom_parameters.json'" -ForegroundColor Yellow
     Write-Host "  Add -NoCleanup to either command to prevent removing layer directories after processing" -ForegroundColor Yellow
     Write-Host "  Add -Force to either command to skip all prompts (processing and cleanup)" -ForegroundColor Yellow
     exit 1
@@ -183,6 +189,34 @@ if (-not $AllValid) {
 
 Write-Host "`nAll layers validated successfully." -ForegroundColor Green
 
+## Validate and load build parameters file
+$BuildParameters = $null
+Write-Host "`nChecking for build parameters file: $BuildParametersPath"
+if (Test-Path -Path $BuildParametersPath) {
+    try {
+        $BuildParametersContent = Get-Content -Path $BuildParametersPath -Raw
+        $BuildParameters = $BuildParametersContent | ConvertFrom-Json
+
+        # Validate build parameters file
+        if (-not $BuildParameters.version -or $BuildParameters.version -ne "v2") {
+            Write-Error "Invalid or missing 'version' property in build parameters file. Must be 'v2'."
+            exit 1
+        }
+
+        if (-not $BuildParameters.layers -or $BuildParameters.layers -isnot [PSCustomObject]) {
+            Write-Error "Missing or invalid 'layers' property in build parameters file. Must be an object."
+            exit 1
+        }
+
+        Write-Host " - Build parameters file loaded successfully." -ForegroundColor Green
+    } catch {
+        Write-Error "Error parsing build parameters file: $($_.Exception.Message)"
+        exit 1
+    }
+} else {
+    Write-Host " - Build parameters file not found. Parameters will not be passed to installation scripts." -ForegroundColor Yellow
+}
+
 ## Prompt for confirmation unless Force is specified
 if (-not $Force) {
     Write-Host "`nYou are about to process the following layers:" -ForegroundColor Yellow
@@ -211,15 +245,40 @@ foreach ($layer in $ValidLayers) {
     $installScriptPath = Join-Path -Path $layerPath -ChildPath "install.ps1"
     if (Test-Path -Path $installScriptPath) {
         Write-Host " - Running installation script..."
+        Push-Location $layerPath
         try
         {
-            Push-Location $layerPath
-            & ".\install.ps1"
+            # Check if we have parameters for this layer in the build parameters file
+            $scriptParams = @{}
+            if ($BuildParameters -and $BuildParameters.layers.PSObject.Properties.Name -contains $layerName) {
+                $layerParams = $BuildParameters.layers.$layerName
+
+                # Process each parameter in the layer
+                foreach ($paramName in $layerParams.PSObject.Properties.Name) {
+                    $paramValue = $layerParams.$paramName.value
+                    $scriptParams[$paramName] = $paramValue
+                }
+
+                # Log the parameters
+                if ($scriptParams.Count -gt 0) {
+                    Write-Host " - Passing the following parameters to the installation script:" -ForegroundColor Cyan
+                    foreach ($param in $scriptParams.GetEnumerator()) {
+                        Write-Host "   - $($param.Key): $($param.Value)" -ForegroundColor Cyan
+                    }
+                }
+            }
+
+            # Execute script with parameters if any
+            if ($scriptParams.Count -gt 0) {
+                & ".\install.ps1" @scriptParams
+            } else {
+                & ".\install.ps1"
+            }
+
             if (!$?)
             {
                 throw "Installation script failed"
             }
-            Pop-Location
             Write-Host "Done" -ForegroundColor Green
         }
         catch
@@ -229,6 +288,8 @@ foreach ($layer in $ValidLayers) {
             Write-Host ":" -ForegroundColor Red
             $_ | Write-ExceptionDetails
             exit 1
+        } finally {
+            Pop-Location
         }
     }
     else
@@ -288,7 +349,7 @@ foreach ($layer in $ValidLayers) {
     }
 
     # Process network whitelisting for public IPs
-    if ($layer.Properties.network -and $layer.Properties.network.whitelisted_public_ips) {
+    if ($layer.Properties.network -ne $null -and $layer.Properties.network.PSObject.Properties.Name -contains "whitelisted_public_ips" -and $layer.Properties.network.whitelisted_public_ips -ne $null) {
         Write-Host " - Processing firewall whitelist rules..."
         $firewallRuleCount = 0
 
@@ -309,15 +370,21 @@ foreach ($layer in $ValidLayers) {
             }
 
             try {
-                # Create a single firewall rule allowing all protocols
                 if ($ports) {
-                    Write-Host "   - Adding firewall rule to allow $target on port(s) $ports"
-                    New-NetFirewallRule -DisplayName $ruleName -Direction Outbound -Action Allow -RemoteAddress $target -Protocol Any -RemotePort $ports -Profile Any -ErrorAction Stop | Out-Null
+                    Write-Host "   - Adding firewall rules to allow $target on port(s) $ports (TCP and UDP)"
+                    foreach ($protocol in @("TCP", "UDP")) {
+                        $protocolRuleName = "$ruleName-$protocol"
+                        New-NetFirewallRule -DisplayName $protocolRuleName -Direction Outbound -Action Allow -RemoteAddress $target -Protocol $protocol -RemotePort $ports -Profile Any -ErrorAction Stop | Out-Null
+                        $firewallRuleCount++
+                    }
                 } else {
-                    Write-Host "   - Adding firewall rule to allow $target on all ports"
-                    New-NetFirewallRule -DisplayName $ruleName -Direction Outbound -Action Allow -RemoteAddress $target -Protocol Any -Profile Any -ErrorAction Stop | Out-Null
+                    Write-Host "   - Adding firewall rule to allow $target on all ports (TCP and UDP)"
+                    foreach ($protocol in @("TCP", "UDP")) {
+                        $protocolRuleName = "$ruleName-$protocol"
+                        New-NetFirewallRule -DisplayName $protocolRuleName -Direction Outbound -Action Allow -RemoteAddress $target -Protocol $protocol -Profile Any -ErrorAction Stop | Out-Null
+                        $firewallRuleCount++
+                    }
                 }
-                $firewallRuleCount++
             } catch {
                 Write-Error "Error creating firewall rule for ${target}: $($_.Exception.Message)"
             }

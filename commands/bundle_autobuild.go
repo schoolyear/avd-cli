@@ -13,6 +13,7 @@ import (
 	"github.com/friendsofgo/errors"
 	"github.com/schoolyear/avd-cli/embeddedfiles"
 	"github.com/schoolyear/avd-cli/lib"
+	"github.com/schoolyear/avd-cli/schema"
 	avdimagetypes "github.com/schoolyear/avd-image-types"
 	"github.com/urfave/cli/v2"
 	"io"
@@ -171,7 +172,7 @@ var BundleAutoDeployCommand = &cli.Command{
 		skipDeployment := c.Bool("skip-deployment")
 		bundlePropertiesPath := c.Path("bundle-properties")
 
-		layers, err := validateBundle(bundle)
+		layers, buildParameters, err := validateBundle(bundle)
 		if err != nil {
 			return errors.Wrap(err, "bundle validation error")
 		}
@@ -302,8 +303,7 @@ var BundleAutoDeployCommand = &cli.Command{
 		fmt.Println("[DONE]")
 
 		fmt.Println()
-		// todo: nil value
-		if err := writeBundleProperties(layers, nil, bundlePropertiesPath); err != nil {
+		if err := writeBundleProperties(layers, buildParameters.Layers, bundlePropertiesPath); err != nil {
 			return errors.Wrap(err, "failed to write bundle properties file")
 		}
 		fmt.Println("")
@@ -336,20 +336,20 @@ var BundleAutoDeployCommand = &cli.Command{
 	},
 }
 
-func validateBundle(bundlePath string) ([]avdimagetypes.V2LayerProperties, error) {
+func validateBundle(bundlePath string) ([]avdimagetypes.V2LayerProperties, *avdimagetypes.V2BuildParameters, error) {
 	archive, err := zip.OpenReader(bundlePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("bundle file does not exist: %s", bundlePath)
+			return nil, nil, fmt.Errorf("bundle file does not exist: %s", bundlePath)
 		}
-		return nil, errors.Wrap(err, "failed to check if bundle file exists")
+		return nil, nil, errors.Wrap(err, "failed to check if bundle file exists")
 	}
 	defer archive.Close()
 
 	layerNames := make(map[string]struct{})
-	filenames := make(map[string]struct{})
+	filenames := make(map[string]*zip.File)
 	for _, f := range archive.File {
-		filenames[f.Name] = struct{}{}
+		filenames[f.Name] = f
 
 		// treat every top-level folder as a layer-name
 		layer, _, found := strings.Cut(f.Name, "/")
@@ -365,14 +365,38 @@ func validateBundle(bundlePath string) ([]avdimagetypes.V2LayerProperties, error
 	}
 
 	if _, ok := filenames[embeddedfiles.V2ExecuteScriptFilename]; !ok {
-		validationErrors = append(validationErrors, fmt.Errorf("bundle does not contain the expected execute script (%s)", embeddedfiles.V2ExecuteScriptFilename))
+		validationErrors = append(validationErrors, fmt.Errorf("bundle does not contain the expected 'execute' script (%s)", embeddedfiles.V2ExecuteScriptFilename))
+	}
+
+	var buildParameters *avdimagetypes.V2BuildParameters
+	if zipFile, ok := filenames[schema.V2BuildParametersFilename]; !ok {
+		validationErrors = append(validationErrors, fmt.Errorf("bundle does not contain the expected build parameters files (%s)", schema.V2BuildParametersFilename))
+	} else {
+		file, err := zipFile.Open()
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to open build parameters file")
+		}
+		defer file.Close()
+
+		data, err := io.ReadAll(file)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to read build parameters file")
+		}
+
+		if err := lib.ValidateAVDImageType(avdimagetypes.V2BuildParametersDefinition, data); err != nil {
+			return nil, nil, errors.Wrap(err, "invalid build parameters file")
+		}
+
+		if err := json.Unmarshal(data, &buildParameters); err != nil {
+			return nil, nil, errors.Wrap(err, "failed to parse build parameters file")
+		}
 	}
 
 	layers := make([]avdimagetypes.V2LayerProperties, 0, len(layerNames))
 	for layerName := range layerNames {
 		layerFs, err := fs.Sub(archive, layerName)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to open layer %s", layerName)
+			return nil, nil, errors.Wrapf(err, "failed to open layer %s", layerName)
 		}
 		propsBytes, _, err := lib.ReadJSONOrJSON5AsJSON(layerFs, layerPropertiesFilename)
 		if err != nil {
@@ -384,7 +408,7 @@ func validateBundle(bundlePath string) ([]avdimagetypes.V2LayerProperties, error
 			} else {
 				var properties avdimagetypes.V2LayerProperties
 				if err := json.Unmarshal(propsBytes, &properties); err != nil {
-					return nil, errors.Wrapf(err, "failed to parse layer %s", layerName)
+					return nil, nil, errors.Wrapf(err, "failed to parse layer %s", layerName)
 				}
 
 				layers = append(layers, properties)
@@ -393,10 +417,10 @@ func validateBundle(bundlePath string) ([]avdimagetypes.V2LayerProperties, error
 	}
 
 	if len(validationErrors) > 0 {
-		return nil, stdErr.Join(validationErrors...)
+		return nil, nil, stdErr.Join(validationErrors...)
 	}
 
-	return layers, nil
+	return layers, buildParameters, nil
 }
 
 func selectBaseImage(layers []avdimagetypes.V2LayerProperties, preselectedLayerName string) (*avdimagetypes.V2LayerPropertiesBaseImage, error) {

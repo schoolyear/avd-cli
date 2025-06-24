@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/friendsofgo/errors"
-	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/schoolyear/avd-cli/embeddedfiles"
 	"github.com/schoolyear/avd-cli/lib"
 	"github.com/schoolyear/avd-cli/schema"
@@ -234,7 +233,7 @@ func resolveLayerParameters(layers []validatedLayer, parameterFilePath string, n
 		}
 
 		if err := lib.ValidateAVDImageType(avdimagetypes.V2BuildParametersDefinition, data); err != nil {
-			return nil, errors.Wrap(err, "failed to validate parameters file")
+			return nil, errors.Wrap(err, "invalid parameters file")
 		}
 
 		var paramFile avdimagetypes.V2BuildParameters
@@ -257,11 +256,18 @@ func resolveLayerParameters(layers []validatedLayer, parameterFilePath string, n
 			var value string
 			if prefilled != nil {
 				if len(param.Enum) > 0 {
-					if err := validation.Validate(prefilled.Value, validation.In(param.Enum)); err != nil {
-						return nil, errors.Wrapf(err, "invalid prefilled parameter: %s/%s", layer.properties.Name, paramName)
+					found := false
+					for _, option := range param.Enum {
+						if prefilled.Value == option {
+							found = true
+							break
+						}
+					}
+					if !found {
+						return nil, fmt.Errorf("invalid prefilled parameter %s/%s, expected one of (%s), got: %s", layer.properties.Name, paramName, strings.Join(param.Enum, ", "), prefilled.Value)
 					}
 				}
-				fmt.Printf("[PREFILLED]: %s\n", paramName)
+				fmt.Printf("[PREFILLED]: %s\n", prefilled.Value)
 				value = prefilled.Value
 			} else if noninteractive {
 				return nil, fmt.Errorf("missing build parameter %s/%s, but running in noninteractive mode", layer.properties.Name, paramName)
