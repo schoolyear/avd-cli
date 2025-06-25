@@ -58,20 +58,14 @@ function Msi-Download-Install {
         $msiExecArguments += " " + $MsiArguments
     }
 
-    $main_process = Start-Process msiexec.exe -ArgumentList $msiExecArguments -NoNewWindow -PassThru
-    $log_process = Start-Process "powershell" "Get-Content -Path output.log -Wait" -NoNewWindow -PassThru
-
-    # for some ungodly reason, accessing the proc.Handle property, we can properly read the ExitCode
-    # https://stackoverflow.com/a/23797762
-    $handle = $main_process.Handle # cache proc.Handle
-    $main_process.WaitForExit()
+    $main_process = Start-Process msiexec.exe -ArgumentList $msiExecArguments -NoNewWindow -PassThru -Wait
     $main_exit_code = $main_process.ExitCode
 
-    $log_process.Kill()
-    Write-Host "Installation of $Name complete"
+    if ($main_exit_code -ne 0) {
+        Get-Content -Path output.log
 
-    Write-Host "Removing $Name MSI"
-    Remove-Item "$LocalFilePath"
+        Write-Host "Installation of $Name failed (exit: $main_exit_code), see the full MSI installation log above"
+    }
 
     Write-Host "Removing MSI installation log"
     Remove-Item "output.log"
