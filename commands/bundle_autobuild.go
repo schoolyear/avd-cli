@@ -125,6 +125,10 @@ var BundleAutoDeployCommand = &cli.Command{
 			Usage: "Number of disk replications in each region. Azure recommends one for every 50 concurrently start students.",
 			Value: 5,
 		},
+		&cli.BoolFlag{
+			Name:  "optimize-image",
+			Usage: "Enabled VM Boot optimization during image build (experimental)",
+		},
 		&cli.StringFlag{
 			Name:     "template-location",
 			Usage:    "Location to create the template in",
@@ -167,6 +171,7 @@ var BundleAutoDeployCommand = &cli.Command{
 		start := c.Bool("start")
 		excludeFromLatest := c.Bool("exclude-from-latest")
 		replicationCount := c.Uint("replication-count")
+		optimizeImage := c.Bool("optimize-image")
 		templateLocation := c.String("template-location")
 		deploymentTemplatePath := c.String("deployment-template")
 		skipDeployment := c.Bool("skip-deployment")
@@ -277,6 +282,7 @@ var BundleAutoDeployCommand = &cli.Command{
 			baseImage,
 			fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/galleries/%s/images/%s", subscriptionId, resourceGroup, imageGallery, imageDefinition),
 			int32(replicationCount),
+			optimizeImage,
 			excludeFromLatest,
 			replicationRegions,
 		)
@@ -484,7 +490,12 @@ func selectImageDefinition(existingImageDefinitions []lib.AzImageDefinition) (na
 	for i, def := range existingImageDefinitions {
 		options[i] = def.Name
 	}
-	idx, err := lib.PromptEnum("Select an Image Definition", options, "", nil)
+	var defaultIdx *int
+	if len(options) == 1 {
+		idx := 0
+		defaultIdx = &idx
+	}
+	idx, err := lib.PromptEnum("Select an Image Definition", options, "", defaultIdx)
 	if err != nil {
 		return "", err
 	}
@@ -560,6 +571,7 @@ func buildImageTemplate(
 
 	targetGalleryImageId string,
 	replicateCount int32,
+	optimizeImage bool,
 	excludeFromLatest bool,
 	targetRegions []string,
 ) *armvirtualmachineimagebuilder.ImageTemplate {
@@ -590,6 +602,17 @@ func buildImageTemplate(
 			VMProfile: &armvirtualmachineimagebuilder.ImageTemplateVMProfile{
 				OSDiskSizeGB: to.Ptr(builderDiskSize),
 				VMSize:       to.Ptr(builderVmSize),
+			},
+			Optimize: &armvirtualmachineimagebuilder.ImageTemplatePropertiesOptimize{
+				VMBoot: &armvirtualmachineimagebuilder.ImageTemplatePropertiesOptimizeVMBoot{
+					State: (func() *armvirtualmachineimagebuilder.VMBootOptimizationState {
+						if optimizeImage {
+							return to.Ptr(armvirtualmachineimagebuilder.VMBootOptimizationStateEnabled)
+						} else {
+							return to.Ptr(armvirtualmachineimagebuilder.VMBootOptimizationStateDisabled)
+						}
+					})(),
+				},
 			},
 		},
 		Tags: map[string]*string{
@@ -698,6 +721,12 @@ func buildCustomizationSteps(bundleHashHex string, bundleSourceUri string) []arm
 			Name:        to.Ptr("build"),
 			RunAsSystem: to.Ptr(true),
 			RunElevated: to.Ptr(true),
+		},
+
+		// not restarting may cause sysprep to fail (stuck in IMAGE_STATE_COMPLETE loop)
+		&armvirtualmachineimagebuilder.ImageTemplateRestartCustomizer{
+			Type: to.Ptr("WindowsRestart"),
+			Name: to.Ptr("Restart before sysprep"),
 		},
 	}
 }
