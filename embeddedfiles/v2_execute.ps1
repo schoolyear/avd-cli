@@ -250,7 +250,9 @@ foreach ($dir in @($setupScriptDestDir, $userAdminScriptDestDir, $userScriptDest
 ## Execute each layer directory one by one
 Write-Host "`nProcessing layers...`n"
 
-foreach ($layer in $ValidLayers) {
+for ($layerIndex = 0; $layerIndex -lt $ValidLayers.Count; $layerIndex++) {
+    $layer = $ValidLayers[$layerIndex]
+
     $layerPath = $layer.Path
     $layerName = $layer.Properties.name
 
@@ -313,9 +315,11 @@ foreach ($layer in $ValidLayers) {
         Write-Host " - Warning: No install.ps1 script found" -ForegroundColor Yellow
     }
 
+    $indexPrefix = "{0:D3}" -f $($layerIndex + 1)
+
     # Move setup script
     $setupScriptPath = Join-Path -Path $layerPath -ChildPath "on_sessionhost_setup.ps1"
-    $setupScriptDestPath = Join-Path -Path $setupScriptDestDir -ChildPath "$layerName.ps1"
+    $setupScriptDestPath = Join-Path -Path $setupScriptDestDir -ChildPath "$($indexPrefix)_$layerName.ps1"
 
     if (Test-Path -Path $setupScriptPath) {
         Write-Host " - Copying setup script to $setupScriptDestPath"
@@ -326,7 +330,7 @@ foreach ($layer in $ValidLayers) {
 
     # Move user system script
     $userAdminScriptPath = Join-Path -Path $layerPath -ChildPath "on_user_login.admin.ps1"
-    $userAdminScriptDestPath = Join-Path -Path $userAdminScriptDestDir -ChildPath "$layerName.ps1"
+    $userAdminScriptDestPath = Join-Path -Path $userAdminScriptDestDir -ChildPath "$($indexPrefix)_$layerName.ps1"
 
     if (Test-Path -Path $userAdminScriptPath) {
         Write-Host " - Copying user admin script to $userAdminScriptDestPath"
@@ -337,7 +341,7 @@ foreach ($layer in $ValidLayers) {
 
     # Move user script
     $userScriptPath = Join-Path -Path $layerPath -ChildPath "on_user_login.user.ps1"
-    $userScriptDestPath = Join-Path -Path $userScriptDestDir -ChildPath "$layerName.ps1"
+    $userScriptDestPath = Join-Path -Path $userScriptDestDir -ChildPath "$($indexPrefix)_$layerName.ps1"
 
     if (Test-Path -Path $userScriptPath) {
         Write-Host " - Copying user script to $userScriptDestPath"
