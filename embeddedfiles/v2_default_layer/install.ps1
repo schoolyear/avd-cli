@@ -1,7 +1,11 @@
 param (
     [Parameter(Mandatory=$true)]
     [ValidateSet("Development", "Testing", "Beta", "Production")]
-    [string]$environment
+    [string]$environment,
+
+    [Parameter(Mandatory=$true)]
+    [ValidateSet("Arabic (Saudi Arabia)","Bulgarian (Bulgaria)","Chinese (Simplified, China)","Chinese (Traditional, Taiwan)","Croatian (Croatia)","Czech (Czech Republic)","Danish (Denmark)","Dutch (Netherlands)", "English (United Kingdom)", "Estonian (Estonia)", "Finnish (Finland)", "French (Canada)", "French (France)", "German (Germany)", "Greek (Greece)", "Hebrew (Israel)", "Hungarian (Hungary)", "Italian (Italy)", "Japanese (Japan)", "Korean (Korea)", "Latvian (Latvia)", "Lithuanian (Lithuania)", "Norwegian, Bokmål (Norway)", "Polish (Poland)", "Portuguese (Brazil)", "Portuguese (Portugal)", "Romanian (Romania)", "Russian (Russia)", "Serbian (Latin, Serbia)", "Slovak (Slovakia)", "Slovenian (Slovenia)", "Spanish (Mexico)", "Spanish (Spain)", "Swedish (Sweden)", "Thai (Thailand)", "Turkish (Turkey)", "Ukrainian (Ukraine)", "English (Australia)", "English (United States)")]
+    [string]$windowsLanguage
 )
 
 # Recommended snippet to make sure PowerShell stops execution on failure
@@ -59,6 +63,19 @@ $ProgressPreference = 'SilentlyContinue'
     Push-Location; Write-Host "=== Executing UninstallTeams.ps1 ==="
     & .\install\UninstallTeams.ps1 -DisableOfficeTeamsInstall
     Pop-Location
+
+    # Set language
+    if ($windowsLanguage -ne "English (United States)") {
+        Push-Location; Write-Host "=== Executing InstallLanguagePacks.ps1 ==="
+        & .\install\rds_templates\InstallLanguagePacks.ps1 -LanguageList $windowsLanguage
+        Pop-Location
+
+        Push-Location; Write-Host "=== Executing SetDefaultLang.ps1 ==="
+        & .\install\rds_templates\SetDefaultLang.ps1 -Language $windowsLanguage
+        Pop-Location
+    } else {
+        Write-Host "Skipping language scripts, because selected langauge is the default ($windowsLanguage)"
+    }
 }
 
 # Make sure the user doesn't get a network profile selection popup when they login
