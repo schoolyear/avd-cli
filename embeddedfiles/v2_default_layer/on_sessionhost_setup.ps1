@@ -44,11 +44,6 @@ New-NetFirewallRule -DisplayName "Allow sessionhost proxy LB outbound ($proxyLoa
 # Allow communication to the AVD endpoints subnet
 New-NetFirewallRule -DisplayName "Allow all outbound to azure AVD endpoints $avdEndpointsIpRange" -Direction Outbound -RemoteAddress $avdEndpointsIpRange -Action Allow -Profile Any | Out-Null
 
-# Block all other outgoing network connections
-Set-NetFirewallProfile -Name Domain -DefaultOutboundAction Block
-Set-NetFirewallProfile -Name Private -DefaultOutboundAction Block
-Set-NetFirewallProfile -Name Public -DefaultOutboundAction Block
-
 # We map a local domain name to point to the LB private IP
 $hostsFilepath = "C:\Windows\System32\drivers\etc\hosts"
 $domain = "proxies.local"
