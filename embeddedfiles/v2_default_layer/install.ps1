@@ -65,17 +65,9 @@ $ProgressPreference = 'SilentlyContinue'
     Pop-Location
 
     # Set language
-    if ($windowsLanguage -ne "English (United States)") {
-        Push-Location; Write-Host "=== Executing InstallLanguagePacks.ps1 ==="
-        & .\install\rds_templates\InstallLanguagePacks.ps1 -LanguageList $windowsLanguage
-        Pop-Location
-
-        Push-Location; Write-Host "=== Executing SetDefaultLang.ps1 ==="
-        & .\install\rds_templates\SetDefaultLang.ps1 -Language $windowsLanguage
-        Pop-Location
-    } else {
-        Write-Host "Skipping language scripts, because selected langauge is the default ($windowsLanguage)"
-    }
+    Push-Location; Write-Host "=== Executing SetDefaultLang.ps1 ==="
+    & .\install\rds_templates\SetDefaultLang.ps1 -Language $windowsLanguage
+    Pop-Location
 }
 
 # Make sure the user doesn't get a network profile selection popup when they login

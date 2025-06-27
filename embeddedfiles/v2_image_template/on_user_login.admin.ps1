@@ -15,7 +15,11 @@ Param (
     [string]$username,     # Username of the Windows user logging in
 
     [Parameter(Mandatory = $true)]
-    [string]$homedir       # Absolute path to the user's home directory
+    [string]$homedir,       # Absolute path to the user's home directory
+
+    # To make sure this script doesn't break when new parameters are added
+    [Parameter(ValueFromRemainingArguments)]
+    [string[]]$RemainingArgs
 )
 
 $ErrorActionPreference = "Stop"
