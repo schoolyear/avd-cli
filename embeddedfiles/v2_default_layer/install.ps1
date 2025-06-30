@@ -75,10 +75,6 @@ Push-Location; Write-Host "=== Executing DisableNetworkProfilePopup.ps1 ==="
 & .\install\DisableNetworkProfilePopup.ps1
 Pop-Location
 
-Push-Location; Write-Host "=== Executing AzureNetwork.ps1 ==="
-& .\install\AzureNetwork.ps1
-Pop-Location
-
 # Install the Schoolyear VDI browser
 Push-Location; Write-Host "=== Executing InstallVDIBrowser.ps1 ==="
 & .\install\InstallVDIBrowser.ps1 -environment $environment
