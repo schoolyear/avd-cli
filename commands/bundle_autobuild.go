@@ -154,7 +154,10 @@ var BundleAutoDeployCommand = &cli.Command{
 		},
 	},
 	Action: func(c *cli.Context) error {
-		bundle := c.Path("bundle")
+		now := time.Now()
+		nowFormatted := now.Format("2006-01-02_15-04-05")
+
+		bundlePath := c.Path("bundle")
 		subscriptionId := c.String("subscription-id")
 		resourceGroup := c.String("resource-group")
 		layerBaseImageName := c.String("layer-base-image")
@@ -177,7 +180,7 @@ var BundleAutoDeployCommand = &cli.Command{
 		skipDeployment := c.Bool("skip-deployment")
 		bundlePropertiesPath := c.Path("bundle-properties")
 
-		layers, buildParameters, err := validateBundle(bundle)
+		layers, buildParameters, err := validateBundle(bundlePath)
 		if err != nil {
 			return errors.Wrap(err, "bundle validation error")
 		}
@@ -246,18 +249,31 @@ var BundleAutoDeployCommand = &cli.Command{
 
 		fmt.Println()
 
+		if err := writeBundleProperties(layers, buildParameters.Layers, bundlePropertiesPath); err != nil {
+			return errors.Wrap(err, "failed to write bundle properties file")
+		}
+
+		fmt.Printf("Uploading bundle properties to Azure Storage Account %s/%s...\n", storageAccount, blobContainer)
+		bundlePropsBlobName := fmt.Sprintf("bundle-%s-%s.json", imageDefinition, nowFormatted)
+		if err := uploadBundle(c.Context, storageAccount, blobContainer, bundlePropertiesPath, bundlePropsBlobName); err != nil {
+			return errors.Wrap(err, "failed to upload bundle properties to Azure Storage Account")
+		}
+		bundlePropsBlobUri := fmt.Sprintf("https://%s.blob.core.windows.net/%s/%s", storageAccount, blobContainer, bundlePropsBlobName)
+
+		fmt.Println()
+
 		fmt.Printf("Calculating bundle hash and size...")
-		hash, err := calcBundleShaAndSize(bundle)
+		hash, err := calcBundleShaAndSize(bundlePath)
 		if err != nil {
-			return errors.Wrapf(err, "failed to calculate hash and size of bundle %s", bundle)
+			return errors.Wrapf(err, "failed to calculate hash and size of bundle %s", bundlePath)
 		}
 		hashHex := hex.EncodeToString(hash)
 		fmt.Printf("[DONE] (sha256: %s)\n", hashHex)
 
-		fmt.Printf("Uploading bundle to Azure Storage Account %s/%s...\n", storageAccount, blobContainer)
-		bundleBlobName := fmt.Sprintf("bundle-%s.zip", hashHex)
-		if err := uploadBundle(c.Context, storageAccount, blobContainer, bundle, bundleBlobName); err != nil {
-			return errors.Wrap(err, "failed to upload bundle to Azure Storage Account")
+		fmt.Printf("Uploading bundle archive to Azure Storage Account %s/%s...\n", storageAccount, blobContainer)
+		bundleArchiveBlobName := fmt.Sprintf("bundle-%s.zip", hashHex)
+		if err := uploadBundle(c.Context, storageAccount, blobContainer, bundlePath, bundleArchiveBlobName); err != nil {
+			return errors.Wrap(err, "failed to upload bundle archive to Azure Storage Account")
 		}
 
 		fmt.Println("")
@@ -276,7 +292,7 @@ var BundleAutoDeployCommand = &cli.Command{
 			int32(buildTimeout),
 			start,
 			hashHex,
-			fmt.Sprintf("https://%s.blob.core.windows.net/%s/%s", storageAccount, blobContainer, bundleBlobName),
+			fmt.Sprintf("https://%s.blob.core.windows.net/%s/%s", storageAccount, blobContainer, bundleArchiveBlobName),
 			builderVmSize,
 			int32(builderDiskSize),
 			baseImage,
@@ -285,6 +301,7 @@ var BundleAutoDeployCommand = &cli.Command{
 			optimizeImage,
 			excludeFromLatest,
 			replicationRegions,
+			bundlePropsBlobUri,
 		)
 
 		deploymentTemplate := buildDeploymentTemplate(imageTemplate)
@@ -309,10 +326,6 @@ var BundleAutoDeployCommand = &cli.Command{
 		fmt.Println("[DONE]")
 
 		fmt.Println()
-		if err := writeBundleProperties(layers, buildParameters.Layers, bundlePropertiesPath); err != nil {
-			return errors.Wrap(err, "failed to write bundle properties file")
-		}
-		fmt.Println("")
 
 		if skipDeployment {
 			fmt.Println("You opted to skip the deployment of the Image Template")
@@ -574,6 +587,8 @@ func buildImageTemplate(
 	optimizeImage bool,
 	excludeFromLatest bool,
 	targetRegions []string,
+
+	bundlePropertiesUri string,
 ) *armvirtualmachineimagebuilder.ImageTemplate {
 	return &armvirtualmachineimagebuilder.ImageTemplate{
 		Identity: &armvirtualmachineimagebuilder.ImageTemplateIdentity{
@@ -585,7 +600,7 @@ func buildImageTemplate(
 		Location: to.Ptr(location),
 		Properties: &armvirtualmachineimagebuilder.ImageTemplateProperties{
 			Distribute: []armvirtualmachineimagebuilder.ImageTemplateDistributorClassification{
-				buildTemplateDistributor(targetGalleryImageId, targetRegions, replicateCount, excludeFromLatest),
+				buildTemplateDistributor(targetGalleryImageId, targetRegions, replicateCount, excludeFromLatest, bundlePropertiesUri),
 			},
 			Source: baseImageSourceToTemplateSource(baseImage),
 			AutoRun: (func() *armvirtualmachineimagebuilder.ImageTemplateAutoRun {
@@ -660,7 +675,7 @@ func baseImageSourceToTemplateSource(baseImage *avdimagetypes.V2LayerPropertiesB
 	}
 }
 
-func buildTemplateDistributor(galleryImageId string, targetRegions []string, replicateCount int32, excludeFromLatest bool) *armvirtualmachineimagebuilder.ImageTemplateSharedImageDistributor {
+func buildTemplateDistributor(galleryImageId string, targetRegions []string, replicateCount int32, excludeFromLatest bool, bundlePropertiesUri string) *armvirtualmachineimagebuilder.ImageTemplateSharedImageDistributor {
 	return &armvirtualmachineimagebuilder.ImageTemplateSharedImageDistributor{
 		GalleryImageID:    to.Ptr(galleryImageId),
 		RunOutputName:     to.Ptr("gallery"),
@@ -679,6 +694,9 @@ func buildTemplateDistributor(galleryImageId string, targetRegions []string, rep
 			return regions
 		})(),
 		Versioning: nil, // could be useful in the future
+		ArtifactTags: map[string]*string{
+			"SY_BUNDLE_URL": to.Ptr(bundlePropertiesUri),
+		},
 	}
 }
 
