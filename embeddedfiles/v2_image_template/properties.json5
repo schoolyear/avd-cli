@@ -16,22 +16,16 @@
       // 'example.com:443', // (port 443 is HTTPS)
       // '*.example.com:*', // (allow any port)
     ],
-    // list of IPs or CIDR ranges that are whitelisted for outgoing connections
-    // these should be public IPs
-    // target: IP or CIDR range
-    // ports: list of port numbers, port ranges. If not set, all ports are allowed
-    whitelisted_public_ips: [
-      // {target: '1.1.1.1'},                     // -> allows outgoing connections to 1.1.1.1
-      // {target: '1.1.1.1', port: '1234'},       // -> allows outgoing connections to 1.1.1.1:1234
-      // {target: '1.1.1.1', port: '1234-1236'},  // -> allows outgoing connections to 1.1.1.1:1234-1236
-      // {target: '1.1.1.1/24'},                  // -> allows outgoing connections to 1.1.1.1/24
-    ],
-    // hostname: local DNS entry will be created during deployment point to an IP
-    // ports: list of port numbers/ranges. If not set, all ports are allowed
-    whitelisted_internal_ips: [
-      // {hostname: 'spss', port: '5093'},               // spss.syavd.local will point to an IP configured later. Only port 5093 is allowed.
-      // {hostname: 'matlab'},                           // matlab.syavd.local will point to an IP configured later. All ports are allowed
-      // {hostname: 'example', port: '5093-5095'},       // example.syavd.local will point to an IP configured later. Only ports 5093-5095 are allowed.
-    ]
+  },
+  build_parameters: {
+    exampleParameter: {
+      description: "This parameter is included as an example. You can remove it, if you remove it from the install.ps1 file as well",
+      // the enum & default fields are optional
+      enum: [
+        "Value 1",
+        "Value 2",
+      ],
+      default: "Value 1"
+    },
   }
 }

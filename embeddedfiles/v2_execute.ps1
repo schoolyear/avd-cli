@@ -350,53 +350,6 @@ for ($layerIndex = 0; $layerIndex -lt $ValidLayers.Count; $layerIndex++) {
         Write-Host " - No on_user_login.user.ps1 script found"
     }
 
-    # Process network whitelisting for public IPs
-    if ($layer.Properties.network -ne $null -and $layer.Properties.network.PSObject.Properties.Name -contains "whitelisted_public_ips" -and $layer.Properties.network.whitelisted_public_ips -ne $null) {
-        Write-Host " - Processing firewall whitelist rules..."
-        $firewallRuleCount = 0
-
-        foreach ($whitelistEntry in $layer.Properties.network.whitelisted_public_ips) {
-            $target = $whitelistEntry.target
-            if (-not $target) {
-                Write-Host "   - Warning: Skipping whitelist entry without target IP" -ForegroundColor Yellow
-                continue
-            }
-
-            $ruleName = "SY-Layer-$layerName-Allow-$($target -replace '[\\/:*?"<>|]', '-')"
-            $ports = $null
-
-            # Handle port specification if provided
-            if ($whitelistEntry.port) {
-                $ports = $whitelistEntry.port
-                $ruleName += "-Port-$($ports -replace '[\\/:*?"<>|]', '-')"
-            }
-
-            try {
-                if ($ports) {
-                    Write-Host "   - Adding firewall rules to allow $target on port(s) $ports (TCP and UDP)"
-                    foreach ($protocol in @("TCP", "UDP")) {
-                        $protocolRuleName = "$ruleName-$protocol"
-                        New-NetFirewallRule -DisplayName $protocolRuleName -Direction Outbound -Action Allow -RemoteAddress $target -Protocol $protocol -RemotePort $ports -Profile Any -ErrorAction Stop | Out-Null
-                        $firewallRuleCount++
-                    }
-                } else {
-                    Write-Host "   - Adding firewall rule to allow $target on all ports (TCP and UDP)"
-                    foreach ($protocol in @("TCP", "UDP")) {
-                        $protocolRuleName = "$ruleName-$protocol"
-                        New-NetFirewallRule -DisplayName $protocolRuleName -Direction Outbound -Action Allow -RemoteAddress $target -Protocol $protocol -Profile Any -ErrorAction Stop | Out-Null
-                        $firewallRuleCount++
-                    }
-                }
-            } catch {
-                Write-Error "Error creating firewall rule for ${target}: $($_.Exception.Message)"
-            }
-        }
-
-        Write-Host "   Added $firewallRuleCount firewall rules" -ForegroundColor Green
-    } else {
-        Write-Host " - No whitelisted_public_ips found in layer properties"
-    }
-
     Write-Host "Layer processing completed: $layerName`n" -ForegroundColor Cyan
 }
 
