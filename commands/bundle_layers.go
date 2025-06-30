@@ -15,6 +15,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -249,10 +250,18 @@ func resolveLayerParameters(layers []validatedLayer, parameterFilePath string, n
 	for _, layer := range layers {
 		fmt.Printf("\t- %s: %d parameter(s) to resolve\n", layer.properties.Name, len(layer.properties.BuildParameters))
 
-		for paramName, param := range layer.properties.BuildParameters {
+		sortedParameterNames := make([]string, 0, len(layer.properties.BuildParameters))
+		for paramName := range layer.properties.BuildParameters {
+			sortedParameterNames = append(sortedParameterNames, paramName)
+		}
+		slices.Sort(sortedParameterNames)
+
+		for _, paramName := range sortedParameterNames {
+			param := layer.properties.BuildParameters[paramName]
 			fmt.Printf("\t\t- %s: ", paramName)
 
 			prefilled := getPrefilledParameter(prefilledParams, layer.properties.Name, paramName)
+
 			var value string
 			if prefilled != nil {
 				if len(param.Enum) > 0 {
@@ -271,39 +280,12 @@ func resolveLayerParameters(layers []validatedLayer, parameterFilePath string, n
 				value = prefilled.Value
 			} else if noninteractive {
 				return nil, fmt.Errorf("missing build parameter %s/%s, but running in noninteractive mode", layer.properties.Name, paramName)
-			} else if len(param.Enum) > 0 {
-				fmt.Println(param.Description)
-
-				options := make([]string, len(param.Enum))
-				var defaultIdx *int
-				for i, option := range param.Enum {
-					options[i] = option
-					if param.Default == option {
-						idx := i
-						defaultIdx = &idx
-					}
-				}
-				idx, err := lib.PromptEnum("Pick one", options, "\t\t\t", defaultIdx)
-				if err != nil {
-					return nil, err
-				}
-				value = param.Enum[idx]
 			} else {
-				fmt.Println(param.Description)
-
-				var defaultValue *string
-				if param.Default != "" {
-					defaultValue = &param.Default
-				}
-				input, err := lib.PromptUserInput("\t\t\tEnter a value: ", defaultValue)
+				var err error
+				value, err = resolveLayerParameterInteractively(param)
 				if err != nil {
-					return nil, err
+					return nil, errors.Wrapf(err, "failed to resolve parameter %s/%s interactively", layer.properties.Name, paramName)
 				}
-
-				if err := lib.ValidateAVDImageType(avdimagetypes.V2BuildParameterValueDefinition, []byte(`"`+input+`"`)); err != nil {
-					return nil, errors.Wrap(err, "invalid build parameter value")
-				}
-				value = input
 			}
 
 			buildParamValue := avdimagetypes.BuildParameterValue{
@@ -321,6 +303,44 @@ func resolveLayerParameters(layers []validatedLayer, parameterFilePath string, n
 	}
 
 	return resolvedParameters, nil
+}
+
+func resolveLayerParameterInteractively(param avdimagetypes.LayerParameter) (value string, err error) {
+	if len(param.Enum) > 0 {
+		fmt.Println(param.Description)
+
+		options := make([]string, len(param.Enum))
+		var defaultIdx *int
+		for i, option := range param.Enum {
+			options[i] = option
+			if param.Default == option {
+				idx := i
+				defaultIdx = &idx
+			}
+		}
+		idx, err := lib.PromptEnum("Pick one", options, "\t\t\t", defaultIdx)
+		if err != nil {
+			return "", err
+		}
+		return param.Enum[idx], nil
+	} else {
+		fmt.Println(param.Description)
+
+		var defaultValue *string
+		if param.Default != "" {
+			defaultValue = &param.Default
+		}
+		input, err := lib.PromptUserInput("\t\t\tEnter a value: ", defaultValue)
+		if err != nil {
+			return "", err
+		}
+
+		if err := lib.ValidateAVDImageType(avdimagetypes.V2BuildParameterValueDefinition, []byte(`"`+input+`"`)); err != nil {
+			return "", errors.Wrap(err, "invalid build parameter value")
+		}
+
+		return input, nil
+	}
 }
 
 func getPrefilledParameter(prefilledParams map[string]map[string]avdimagetypes.BuildParameterValue, layerName, paramName string) *avdimagetypes.BuildParameterValue {
