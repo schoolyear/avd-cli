@@ -199,17 +199,17 @@ var BundleAutoDeployCommand = &cli.Command{
 		fmt.Printf("[DONE]\n")
 
 		// check if subscription is in list of accounts
-		foundSubscriptionName := ""
+		var foundSubscription *lib.AzAccount
 		for _, azureAccount := range azureAccountList {
 			if azureAccount.SubscriptionId == subscriptionId {
-				foundSubscriptionName = azureAccount.Name
+				foundSubscription = to.Ptr(azureAccount)
 				break
 			}
 		}
-		if foundSubscriptionName == "" {
+		if foundSubscription == nil {
 			return errors.New("Azure CLI is not logged in to a tenant with the specified subscription-id")
 		} else {
-			fmt.Printf("Working in Subscription: %s (%s)\n", foundSubscriptionName, subscriptionId)
+			fmt.Printf("Working in Subscription: %s (%s)\n", foundSubscription.Name, subscriptionId)
 		}
 
 		fmt.Println()
@@ -229,7 +229,7 @@ var BundleAutoDeployCommand = &cli.Command{
 
 		if imageDefinition == "" {
 			var err error
-			imageDefinition, err = selectImageDefinition(imageDefinitions)
+			imageDefinition, err = selectImageDefinition(imageDefinitions, foundSubscription.TenantId, subscriptionId, resourceGroup, imageGallery)
 			if err != nil {
 				return errors.Wrap(err, "failed to select Image Definition")
 			}
@@ -494,9 +494,9 @@ func selectBaseImage(layers []avdimagetypes.V2LayerProperties, preselectedLayerN
 	}
 }
 
-func selectImageDefinition(existingImageDefinitions []lib.AzImageDefinition) (name string, err error) {
-	fmt.Println("You did not specify an Image Definition, please select an existing one")
-	fmt.Println("You can create a Image Definition in the Azure Portal")
+func selectImageDefinition(existingImageDefinitions []lib.AzImageDefinition, tenantId, subscriptionId, rgName, galleryName string) (name string, err error) {
+	fmt.Println("You did not specify an Image Definition, please select an existing one or create a new one in the Azure Portal:")
+	fmt.Printf("Create a new one: https://portal.azure.com/#@%s/resource/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/galleries/%s/overview\n", tenantId, subscriptionId, rgName, galleryName)
 	fmt.Println("To select an image definition non-interactively, pass the --image-definition flag")
 
 	options := make([]string, len(existingImageDefinitions))
