@@ -1,7 +1,7 @@
 {
   version: 'v2',
   name: 'com.schoolyear.avd',
-  description: 'The built-in Schoolyear layer, included in every bundle',
+  description: 'The default built-in Schoolyear layer, included in every bundle',
   author: {
     name: 'Schoolyear',
     email: 'avd@schoolyear.com'

@@ -242,7 +242,7 @@ var BundleAutoDeployCommand = &cli.Command{
 				}
 			}
 			if !found {
-				return fmt.Errorf("The specified Image Definition (%s) doesn't exist in the Image Gallery (%s)\n", imageDefinition, imageGallery)
+				return fmt.Errorf("the specified Image Definition (%s) doesn't exist in the Image Gallery (%s)", imageDefinition, imageGallery)
 			}
 		}
 		fmt.Printf("Target Image Definition: %s/%s\n", imageGallery, imageDefinition)
