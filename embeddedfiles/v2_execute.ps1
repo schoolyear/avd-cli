@@ -312,7 +312,7 @@ for ($layerIndex = 0; $layerIndex -lt $ValidLayers.Count; $layerIndex++) {
     }
     else
     {
-        Write-Host " - Warning: No install.ps1 script found" -ForegroundColor Yellow
+        Write-Host " - Warning: This layer has no install.ps1 script" -ForegroundColor Yellow
     }
 
     $indexPrefix = "{0:D3}" -f $($layerIndex + 1)
