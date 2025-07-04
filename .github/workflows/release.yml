@@ -47,6 +47,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
+          prerelease: ${{ github.ref != 'refs/heads/master' }}
           files: |
             bin/avdcli-windows-amd64.exe
             bin/avdcli-windows-arm64.exe
