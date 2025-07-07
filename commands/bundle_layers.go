@@ -2,9 +2,13 @@ package commands
 
 import (
 	"archive/zip"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/friendsofgo/errors"
+	"github.com/go-resty/resty/v2"
+	"github.com/schollz/progressbar/v3"
 	"github.com/schoolyear/avd-cli/embeddedfiles"
 	"github.com/schoolyear/avd-cli/lib"
 	"github.com/schoolyear/avd-cli/schema"
@@ -16,7 +20,9 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 )
 
 const layerPropertiesFilename = "properties" // (either json or json5)
@@ -27,7 +33,7 @@ var BundleLayersCommand = &cli.Command{
 	Flags: []cli.Flag{
 		&cli.StringSliceFlag{
 			Name:      "layer",
-			Usage:     "Paths to the image layers",
+			Usage:     "Paths to local image layers or download layers on-demand using @community:name[@versiontag]",
 			Required:  true,
 			TakesFile: true,
 			Aliases:   []string{"l"},
@@ -56,6 +62,19 @@ var BundleLayersCommand = &cli.Command{
 			TakesFile: true,
 			Aliases:   []string{"b"},
 		},
+		&cli.PathFlag{
+			Name:  "community-cache",
+			Usage: "Path to a folder in which the community cache can be stored",
+			Value: "./.community-cache",
+		},
+		&cli.BoolFlag{
+			Name:  "ignore-keyring",
+			Usage: "Set if you want to ignore any existing tokens in your local keyring and force reauthentication",
+		},
+		&cli.BoolFlag{
+			Name:  "no-keyring-cache",
+			Usage: "Set if you do not want to store tokens in your local keyring for later use",
+		},
 	},
 	Action: func(c *cli.Context) error {
 		layerPaths := c.StringSlice("layer")
@@ -63,8 +82,36 @@ var BundleLayersCommand = &cli.Command{
 		noninteractive := c.Bool("noninteractive")
 		bundleOutput := c.Path("bundle-archive")
 		bundleProperties := c.Path("bundle-properties")
+		communityCachePath := c.Path("community-cache")
+		ignoreKeyring := c.Bool("ignore-keyring")
+		noKeyringCache := c.Bool("no-keyring-cache")
 
-		layers, err := validateLayers(layerPaths)
+		client := resty.New().
+			SetTimeout(10 * time.Second).
+			SetRetryCount(2).
+			SetRetryWaitTime(1 * time.Second)
+
+		// todo: prompt for update
+
+		parsedLayerPaths, hasCommunityLayers := parseLayerPaths(layerPaths)
+
+		var githubToken string
+		if hasCommunityLayers {
+			token, err := lib.GithubDeviceFlow(client, static.GithubAppClientId, !ignoreKeyring, !noKeyringCache, "To download community layers, you must authenticate with GitHub")
+			if err != nil {
+				return errors.Wrap(err, "failed to authenticate with GitHub")
+			}
+			githubToken = token
+		}
+
+		layersToBundle, err := resolveLayersToBundle(client, parsedLayerPaths, communityCachePath, githubToken)
+		if err != nil {
+			return errors.Wrap(err, "failed to resolve layers to bundle")
+		}
+
+		fmt.Println()
+
+		layers, err := validateLayers(layersToBundle)
 		if err != nil {
 			return errors.Wrap(err, "failed to load and validate layers")
 		}
@@ -106,6 +153,239 @@ var BundleLayersCommand = &cli.Command{
 	},
 }
 
+type parsedLayerPath struct {
+	originalValue string
+	community     *communityLayerPath
+}
+
+type communityLayerPath struct {
+	name string
+	ref  string
+}
+
+func parseLayerPaths(layerPaths []string) (layers []parsedLayerPath, hasCommunityLayers bool) {
+	layers = make([]parsedLayerPath, len(layerPaths))
+	for i, layerPath := range layerPaths {
+		layer := parsedLayerPath{
+			originalValue: layerPath,
+		}
+
+		_, reference, isCommunityLayer := strings.Cut(layerPath, "@community:")
+		if isCommunityLayer {
+			name, version, ok := strings.Cut(reference, "@")
+			if !ok {
+				version = "main"
+			}
+
+			layer.community = &communityLayerPath{
+				name: name,
+				ref:  version,
+			}
+			hasCommunityLayers = true
+		}
+
+		layers[i] = layer
+	}
+
+	return layers, hasCommunityLayers
+}
+
+func resolveLayersToBundle(client *resty.Client, parsedLayerPaths []parsedLayerPath, communityCachePath string, githubToken string) ([]layerToBundle, error) {
+	layersToBundle := make([]layerToBundle, 0, len(parsedLayerPaths)+1)
+
+	layersToBundle = append(layersToBundle, layerToBundle{
+		originalPathName: "default layer (built-in)",
+		path:             embeddedfiles.V2DefaultLayerBasePath,
+		fs:               embeddedfiles.V2DefaultLayer,
+	})
+
+	fmt.Println("Resolving layers to bundle:")
+	for _, layerPath := range parsedLayerPaths {
+		fmt.Printf("\t- %s: ", layerPath.originalValue)
+
+		var layer layerToBundle
+
+		if layerPath.community == nil {
+			dirPath := filepath.Dir(layerPath.originalValue)
+			dirFS := os.DirFS(dirPath)
+			layer = layerToBundle{
+				originalPathName: layerPath.originalValue,
+				path:             filepath.Base(layerPath.originalValue),
+				fs:               dirFS,
+			}
+
+			fmt.Println("LOCAL")
+		} else {
+			fmt.Printf("scanning repository...")
+
+			localPath, err := downloadLayerFromGithub(client, *layerPath.community, communityCachePath, githubToken)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to download layer %s from the community repository", layerPath.originalValue)
+			}
+
+			dirPath := filepath.Dir(localPath)
+			dirFS := os.DirFS(dirPath)
+			layer = layerToBundle{
+				originalPathName: layerPath.originalValue,
+				path:             filepath.Base(localPath),
+				fs:               dirFS,
+			}
+
+			fmt.Println()
+		}
+
+		layersToBundle = append(layersToBundle, layer)
+	}
+
+	return layersToBundle, nil
+}
+
+func downloadLayerFromGithub(client *resty.Client, layer communityLayerPath, cachePath, githubToken string) (path string, err error) {
+	// find layer tree sha
+	items, err := lib.GithubListContents(client, githubToken, static.GithubImageCommunityOwner, static.GithubImageCommunityRepo, static.GithubImageCommunityLayerPath, &layer.ref)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to list available community layers from Github")
+	}
+
+	var treeSha string
+	for _, item := range items {
+		if item.Type == "dir" && item.Name == layer.name {
+			treeSha = item.SHA
+			break
+		}
+	}
+	if treeSha == "" {
+		return "", errors.Errorf("%s not found in the community (ref:%s)", layer.name, layer.ref)
+	}
+
+	layerTree, err := lib.GithubListTree(client, githubToken, static.GithubImageCommunityOwner, static.GithubImageCommunityRepo, treeSha, true)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to list files in community layer")
+	}
+
+	if layerTree.Truncated {
+		return "", errors.Errorf("%s@%s has too many files to download from Github automatically", layer.name, layer.ref)
+	}
+
+	var filesToDownload []fileToDownload
+	totalSize := int64(0)
+	for _, tree := range layerTree.Tree {
+		if tree.Type == "blob" && tree.Size != nil && tree.URL != nil {
+			var fileMode os.FileMode
+			switch tree.Mode {
+			case "100644": // file
+				fileMode = 0644
+			case "100755": // executable
+				fileMode = 0755
+			default:
+				return "", errors.Errorf("unsupported file mode %s", tree.Mode)
+			}
+
+			filesToDownload = append(filesToDownload, fileToDownload{
+				path: tree.Path,
+				mode: fileMode,
+				sha:  tree.SHA,
+				size: *tree.Size,
+				url:  *tree.URL,
+			})
+			totalSize += *tree.Size
+		}
+	}
+
+	fmt.Printf("%d files\n", len(filesToDownload))
+
+	progress := progressbar.NewOptions(int(totalSize),
+		progressbar.OptionSetElapsedTime(true),
+		progressbar.OptionSetPredictTime(true),
+		progressbar.OptionShowBytes(true),
+	)
+
+	const description = "\t\tDownloading"
+	progress.Describe(description)
+
+	layerCachePath := filepath.Join(cachePath, treeSha)
+	cacheHitCount := 0
+	for _, file := range filesToDownload {
+		cacheHit, err := downloadGithubFile(client, layerCachePath, file, progress)
+		if err != nil {
+			return "", errors.Wrapf(err, "failed to download %s from GitHub", file.url)
+		}
+		if cacheHit {
+			cacheHitCount++
+		}
+	}
+
+	progress.Describe(fmt.Sprintf("%s (cache hits: %d/%d)", description, cacheHitCount, len(filesToDownload)))
+	_ = progress.Finish()
+
+	return layerCachePath, nil
+}
+
+type fileToDownload struct {
+	path string
+	mode os.FileMode
+	sha  string
+	size int64
+	url  string
+}
+
+func downloadGithubFile(client *resty.Client, layerCachePath string, file fileToDownload, bar *progressbar.ProgressBar) (cacheHit bool, err error) {
+	targetPath := filepath.Join(layerCachePath, file.path)
+	targetDir := filepath.Dir(targetPath)
+
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return false, errors.Wrapf(err, "failed to create directory %s", targetDir)
+	}
+
+	f, err := os.OpenFile(targetPath, os.O_CREATE|os.O_RDWR, file.mode)
+	if err != nil {
+		return false, errors.Wrapf(err, "failed to create file %s", targetPath)
+	}
+	defer f.Close()
+
+	hash := sha1.New()
+
+	// the Git SHA hash includes a header
+	hash.Write([]byte("blob "))
+	hash.Write([]byte(strconv.Itoa(int(file.size))))
+	hash.Write([]byte{0})
+
+	if _, err := io.Copy(hash, f); err != nil {
+		return false, errors.Wrapf(err, "failed to calculate sha of file %s", targetPath)
+	}
+	existingSha := hash.Sum(nil)
+	existingShaHex := hex.EncodeToString(existingSha)
+	if existingShaHex == file.sha {
+		return true, nil
+	}
+	if err := f.Truncate(0); err != nil {
+		return false, errors.Wrap(err, "failed to truncate cached but outdated file")
+	}
+	if _, err := f.Seek(0, 0); err != nil {
+		return false, errors.Wrap(err, "failed to seek back to start of outdated file")
+	}
+
+	res, err := client.R().
+		SetDoNotParseResponse(true).
+		SetHeader("Accept", "application/vnd.github.raw+json").
+		Get(file.url)
+	if err != nil {
+		return false, errors.Wrapf(err, "failed to download %s from %s", file.path, file.url)
+	}
+	body := res.RawBody()
+	defer body.Close()
+
+	if res.StatusCode() != 200 {
+		return false, errors.Wrapf(err, "failed to download (%d): %s", res.StatusCode(), res.String())
+	}
+
+	if _, err := io.Copy(f, io.TeeReader(body, bar)); err != nil {
+		return false, errors.Wrap(err, "download failed")
+	}
+
+	return false, nil
+}
+
 type layerToBundle struct {
 	originalPathName string // the original string used to reference this layer. may not be an actual path
 	path             string
@@ -117,25 +397,7 @@ type validatedLayer struct {
 	properties *avdimagetypes.V2LayerProperties
 }
 
-func validateLayers(layerPaths []string) ([]validatedLayer, error) {
-	layersToBundle := make([]layerToBundle, 0, len(layerPaths)+1)
-
-	layersToBundle = append(layersToBundle, layerToBundle{
-		originalPathName: "default layer (built-in)",
-		path:             embeddedfiles.V2DefaultLayerBasePath,
-		fs:               embeddedfiles.V2DefaultLayer,
-	})
-
-	for _, path := range layerPaths {
-		dirPath := filepath.Dir(path)
-		dirFS := os.DirFS(dirPath)
-		layersToBundle = append(layersToBundle, layerToBundle{
-			originalPathName: path,
-			path:             filepath.Base(path),
-			fs:               dirFS,
-		})
-	}
-
+func validateLayers(layersToBundle []layerToBundle) ([]validatedLayer, error) {
 	fmt.Println("Validating layers:")
 
 	layers := make([]validatedLayer, 0, len(layersToBundle))
