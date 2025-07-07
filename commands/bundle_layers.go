@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/dustin/go-humanize"
 	"github.com/friendsofgo/errors"
 	"github.com/go-resty/resty/v2"
 	"github.com/schollz/progressbar/v3"
@@ -290,7 +291,8 @@ func downloadLayerFromGithub(client *resty.Client, layer communityLayerPath, cac
 		}
 	}
 
-	fmt.Printf("%d files\n", len(filesToDownload))
+	humanSize := humanize.Bytes(uint64(totalSize))
+	fmt.Printf("%d files (%s)\n", len(filesToDownload), humanSize)
 
 	progress := progressbar.NewOptions(int(totalSize),
 		progressbar.OptionSetElapsedTime(true),
@@ -309,12 +311,13 @@ func downloadLayerFromGithub(client *resty.Client, layer communityLayerPath, cac
 			return "", errors.Wrapf(err, "failed to download %s from GitHub", file.url)
 		}
 		if cacheHit {
+			_ = progress.Add64(file.size)
 			cacheHitCount++
 		}
 	}
 
-	progress.Describe(fmt.Sprintf("%s (cache hits: %d/%d)", description, cacheHitCount, len(filesToDownload)))
 	_ = progress.Finish()
+	fmt.Printf("\n\t\tCache hits: %d/%d\n", cacheHitCount, len(filesToDownload))
 
 	return layerCachePath, nil
 }
