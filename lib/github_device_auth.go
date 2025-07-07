@@ -39,10 +39,10 @@ func GithubDeviceFlow(client *resty.Client, clientId string, checkKeyringCache, 
 	}
 
 	fmt.Println("Log into GitHub:", reason)
-	fmt.Println("\t1. Open:", startRes.VerificationURI)
-	fmt.Println("\t2. Enter:", startRes.UserCode)
-	fmt.Println("\t3. Authorize")
-	fmt.Println("\t4. Return here")
+	fmt.Println("    1. Open:", startRes.VerificationURI)
+	fmt.Println("    2. Enter:", startRes.UserCode)
+	fmt.Println(`    3. Click "Authorize"`)
+	fmt.Println("    4. Return here")
 	fmt.Printf("Waiting...")
 
 	for {
@@ -82,6 +82,9 @@ func GithubDeviceFlow(client *resty.Client, clientId string, checkKeyringCache, 
 			return "", errors.Wrap(err, "failed to write github secret to local keyring")
 		}
 	}
+
+	fmt.Println()
+	fmt.Println()
 
 	return token, nil
 }

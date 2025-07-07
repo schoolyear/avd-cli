@@ -66,7 +66,7 @@ var BundleLayersCommand = &cli.Command{
 		&cli.PathFlag{
 			Name:  "community-cache",
 			Usage: "Path to a folder in which the community cache can be stored",
-			Value: "./.community-cache",
+			Value: "~/.avdcli/community-cache",
 		},
 		&cli.BoolFlag{
 			Name:  "ignore-keyring",
@@ -87,6 +87,15 @@ var BundleLayersCommand = &cli.Command{
 		ignoreKeyring := c.Bool("ignore-keyring")
 		noKeyringCache := c.Bool("no-keyring-cache")
 
+		// resolve ~ for community cache folder
+		if strings.HasPrefix(communityCachePath, "~") {
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return errors.Wrap(err, "failed to get home directory")
+			}
+			communityCachePath = filepath.Join(homeDir, communityCachePath[1:])
+		}
+
 		client := resty.New().
 			SetTimeout(10 * time.Second).
 			SetRetryCount(2).
@@ -101,8 +110,6 @@ var BundleLayersCommand = &cli.Command{
 				return errors.Wrap(err, "failed to authenticate with GitHub")
 			}
 			githubToken = token
-
-			fmt.Println()
 		}
 
 		layersToBundle, err := resolveLayersToBundle(client, parsedLayerPaths, communityCachePath, githubToken)
@@ -118,7 +125,6 @@ var BundleLayersCommand = &cli.Command{
 		}
 
 		fmt.Println()
-		fmt.Println("Resolving parameters")
 		resolvedParameters, err := resolveLayerParameters(layers, parameterFile, noninteractive)
 		if err != nil {
 			return errors.Wrap(err, "failed to resolve parameters")
@@ -202,7 +208,7 @@ func resolveLayersToBundle(client *resty.Client, parsedLayerPaths []parsedLayerP
 
 	fmt.Println("Resolving layers to bundle:")
 	for _, layerPath := range parsedLayerPaths {
-		fmt.Printf("\t- %s: ", layerPath.originalValue)
+		fmt.Printf("    - %s: ", layerPath.originalValue)
 
 		var layer layerToBundle
 
@@ -302,7 +308,7 @@ func downloadLayerFromGithub(client *resty.Client, layer communityLayerPath, cac
 		progressbar.OptionShowBytes(true),
 	)
 
-	const description = "\t\tDownloading"
+	const description = "        Downloading"
 	progress.Describe(description)
 
 	layerCachePath := filepath.Join(cachePath, treeSha)
@@ -319,7 +325,7 @@ func downloadLayerFromGithub(client *resty.Client, layer communityLayerPath, cac
 	}
 
 	_ = progress.Finish()
-	fmt.Printf("\n\t\tCache hits: %d/%d\n", cacheHitCount, len(filesToDownload))
+	fmt.Printf("\n        Cache hits: %d/%d\n", cacheHitCount, len(filesToDownload))
 
 	return layerCachePath, nil
 }
@@ -407,12 +413,12 @@ func validateLayers(layersToBundle []layerToBundle) ([]validatedLayer, error) {
 	names := map[string]struct{}{}
 	allValid := true
 	for i, layerToBundle := range layersToBundle {
-		fmt.Printf("\t- Layer %d: %s: ", i+1, layerToBundle.originalPathName)
+		fmt.Printf("    - Layer %d: %s: ", i+1, layerToBundle.originalPathName)
 
 		layer, err := validateLayer(layerToBundle)
 		if err != nil {
 			allValid = false
-			fmt.Printf("[Invalid]: \n\t\t%s\n", strings.ReplaceAll(err.Error(), "\n", "\n\t\t"))
+			fmt.Printf("[Invalid]: \n        %s\n", strings.ReplaceAll(err.Error(), "\n", "\n        "))
 			continue
 		}
 
@@ -444,7 +450,7 @@ func validateLayers(layersToBundle []layerToBundle) ([]validatedLayer, error) {
 				status = fmt.Sprintf("[Error]: %s", err)
 				allValid = false
 			}
-			fmt.Printf("\t\t%s: %s\n", filename, status)
+			fmt.Printf("        %s: %s\n", filename, status)
 		}
 
 		layers = append(layers, *layer)
@@ -513,7 +519,7 @@ func resolveLayerParameters(layers []validatedLayer, parameterFilePath string, n
 	resolvedParameters := map[string]map[string]avdimagetypes.BuildParameterValue{}
 	fmt.Println("Resolving build parameters per layer:")
 	for _, layer := range layers {
-		fmt.Printf("\t- %s: %d parameter(s) to resolve\n", layer.properties.Name, len(layer.properties.BuildParameters))
+		fmt.Printf("    - %s: %d parameter(s) to resolve\n", layer.properties.Name, len(layer.properties.BuildParameters))
 
 		sortedParameterNames := make([]string, 0, len(layer.properties.BuildParameters))
 		for paramName := range layer.properties.BuildParameters {
@@ -523,7 +529,7 @@ func resolveLayerParameters(layers []validatedLayer, parameterFilePath string, n
 
 		for _, paramName := range sortedParameterNames {
 			param := layer.properties.BuildParameters[paramName]
-			fmt.Printf("\t\t- %s: ", paramName)
+			fmt.Printf("        - %s: ", paramName)
 
 			prefilled := getPrefilledParameter(prefilledParams, layer.properties.Name, paramName)
 
@@ -583,7 +589,7 @@ func resolveLayerParameterInteractively(param avdimagetypes.LayerParameter) (val
 				defaultIdx = &idx
 			}
 		}
-		idx, err := lib.PromptEnum("Pick one", options, "\t\t\t", defaultIdx)
+		idx, err := lib.PromptEnum("Pick one", options, "            ", defaultIdx)
 		if err != nil {
 			return "", err
 		}
@@ -595,7 +601,7 @@ func resolveLayerParameterInteractively(param avdimagetypes.LayerParameter) (val
 		if param.Default != "" {
 			defaultValue = &param.Default
 		}
-		input, err := lib.PromptUserInput("\t\t\tEnter a value: ", defaultValue)
+		input, err := lib.PromptUserInput("            Enter a value: ", defaultValue)
 		if err != nil {
 			return "", err
 		}
@@ -641,15 +647,15 @@ func showBaseImage(layers []validatedLayer) {
 
 	switch len(layerIdsWithBaseImageDefinition) {
 	case 0:
-		fmt.Printf("No layer explicitly defines a base image, so we recommending building the image using this base image: \n\t%s\n", baseImageToString(defaultBaseImage))
+		fmt.Printf("No layer explicitly defines a base image, so we recommending building the image using this base image: \n    %s\n", baseImageToString(defaultBaseImage))
 	case 1:
 		layer := layers[layerIdsWithBaseImageDefinition[0]]
-		fmt.Printf("The layer %s defines the following base-image: \n\t%s\n", layer.properties.Name, baseImageToString(layer.properties.BaseImage))
+		fmt.Printf("The layer %s defines the following base-image: \n    %s\n", layer.properties.Name, baseImageToString(layer.properties.BaseImage))
 	default:
 		fmt.Println("Multiple layers define a base image")
 		for _, layerId := range layerIdsWithBaseImageDefinition {
 			layer := layers[layerId]
-			fmt.Printf("\t- Layer %s\n: %s", layer.properties.Name, baseImageToString(layer.properties.BaseImage))
+			fmt.Printf("    - Layer %s\n: %s", layer.properties.Name, baseImageToString(layer.properties.BaseImage))
 		}
 		fmt.Println("You have to decide which one to use")
 	}
@@ -684,7 +690,7 @@ func copyLayersIntoBundle(layers []validatedLayer, buildParams avdimagetypes.V2B
 	zipWriter := zip.NewWriter(bundleFile)
 	defer zipWriter.Close()
 
-	fmt.Printf("\t- Adding %s...", embeddedfiles.V2ExecuteScriptFilename)
+	fmt.Printf("    - Adding %s...", embeddedfiles.V2ExecuteScriptFilename)
 	executeFile, err := zipWriter.Create(embeddedfiles.V2ExecuteScriptFilename)
 	if err != nil {
 		return errors.Wrap(err, "failed to create execute script in the bundle")
@@ -694,8 +700,8 @@ func copyLayersIntoBundle(layers []validatedLayer, buildParams avdimagetypes.V2B
 	}
 	fmt.Printf("[DONE]\n")
 
-	fmt.Printf("\t- Adding %s...", schema.V2BuildParametersFilename)
-	buildParamsData, err := json.MarshalIndent(buildParams, "", "\t")
+	fmt.Printf("    - Adding %s...", schema.V2BuildParametersFilename)
+	buildParamsData, err := json.MarshalIndent(buildParams, "", "    ")
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal build parameters to JSON")
 	}
@@ -712,7 +718,7 @@ func copyLayersIntoBundle(layers []validatedLayer, buildParams avdimagetypes.V2B
 	for i, layer := range layers {
 		layerName := fmt.Sprintf("%03d-%s", i+1, layers[i].properties.Name)
 
-		fmt.Printf("\t- Copying layer %s...", layerName)
+		fmt.Printf("    - Copying layer %s...", layerName)
 		if err := copyLayerToBundle(zipWriter, layerName, layer.fs, layer.path); err != nil {
 			return errors.Wrapf(err, "failed to copy layer %s to the bundle zip file", layerName)
 		}
@@ -788,7 +794,7 @@ func writeBundleProperties(layers []avdimagetypes.V2LayerProperties, buildParame
 	defer propFile.Close()
 
 	encoder := json.NewEncoder(propFile)
-	encoder.SetIndent("", "\t")
+	encoder.SetIndent("", "    ")
 	if err := encoder.Encode(bundle); err != nil {
 		return errors.Wrap(err, "failed to write to file")
 	}

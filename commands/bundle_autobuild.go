@@ -305,7 +305,7 @@ var BundleAutoDeployCommand = &cli.Command{
 		)
 
 		deploymentTemplate := buildDeploymentTemplate(imageTemplate)
-		deploymentTemplateBytes, err := json.MarshalIndent(deploymentTemplate, "", "\t")
+		deploymentTemplateBytes, err := json.MarshalIndent(deploymentTemplate, "", "    ")
 		if err != nil {
 			return errors.Wrap(err, "failed to stringify deployment template")
 		}
@@ -462,18 +462,18 @@ func selectBaseImage(layers []avdimagetypes.V2LayerProperties, preselectedLayerN
 			return nil, fmt.Errorf("selected layer %s does not have a base image configured", preselectedLayerName)
 		}
 
-		fmt.Printf("Using the base image from layer %s: \n\t%s\n", preselectedLayerName, baseImageToString(defaultBaseImage))
+		fmt.Printf("Using the base image from layer %s: \n    %s\n", preselectedLayerName, baseImageToString(defaultBaseImage))
 
 		return baseImage, nil
 	}
 
 	switch len(layerIdxsWithBaseImage) {
 	case 0:
-		fmt.Printf("No layer explicitly defines a base image, so the default base image will be used: \n\t%s\n", baseImageToString(defaultBaseImage))
+		fmt.Printf("No layer explicitly defines a base image, so the default base image will be used: \n    %s\n", baseImageToString(defaultBaseImage))
 		return defaultBaseImage, nil
 	case 1:
 		layer := layers[layerIdxsWithBaseImage[0]]
-		fmt.Printf("The layer %s defines the base image that will be used: \n\t%s\n", layer.Name, baseImageToString(layer.BaseImage))
+		fmt.Printf("The layer %s defines the base image that will be used: \n    %s\n", layer.Name, baseImageToString(layer.BaseImage))
 		return layer.BaseImage, nil
 	default:
 		fmt.Println("Multiple layers define a base image")
@@ -481,7 +481,7 @@ func selectBaseImage(layers []avdimagetypes.V2LayerProperties, preselectedLayerN
 		options := make([]string, len(layerIdxsWithBaseImage))
 		for i, layerIdx := range layerIdxsWithBaseImage {
 			layer := layers[layerIdx]
-			options[i] = fmt.Sprintf("\t- %d: Layer %s\n: %s", i+1, layer.Name, baseImageToString(layer.BaseImage))
+			options[i] = fmt.Sprintf("    - %d: Layer %s\n: %s", i+1, layer.Name, baseImageToString(layer.BaseImage))
 		}
 		idx, err := lib.PromptEnum("Select the base image to use", options, "", nil)
 		if err != nil {
