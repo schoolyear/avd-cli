@@ -32,7 +32,7 @@ func PromptUserInput(prompt string, defaultValue *string) (string, error) {
 
 func PromptEnum(prompt string, options []string, linePrefix string, defaultIdx *int) (int, error) {
 	for i, option := range options {
-		fmt.Printf("%s\t- [%d] %s\n", linePrefix, i+1, option)
+		fmt.Printf("%s- [%d] %s\n", linePrefix, i+1, option)
 	}
 
 	var promptText string
