@@ -101,6 +101,8 @@ var BundleLayersCommand = &cli.Command{
 				return errors.Wrap(err, "failed to authenticate with GitHub")
 			}
 			githubToken = token
+
+			fmt.Println()
 		}
 
 		layersToBundle, err := resolveLayersToBundle(client, parsedLayerPaths, communityCachePath, githubToken)
