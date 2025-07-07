@@ -91,8 +91,6 @@ var BundleLayersCommand = &cli.Command{
 			SetRetryCount(2).
 			SetRetryWaitTime(1 * time.Second)
 
-		// todo: prompt for update
-
 		parsedLayerPaths, hasCommunityLayers := parseLayerPaths(layerPaths)
 
 		var githubToken string
