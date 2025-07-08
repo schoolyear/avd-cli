@@ -88,7 +88,7 @@ Visit https://avd.schoolyear.com for more information on how to use this tool.`,
 	}
 
 	if err := app.RunContext(ctx, os.Args); err != nil {
-		fmt.Println("Error:", err.Error())
+		fmt.Println("\n\nError:", err.Error())
 		os.Exit(1)
 	}
 }

@@ -208,7 +208,7 @@ func resolveLayersToBundle(client *resty.Client, parsedLayerPaths []parsedLayerP
 
 	fmt.Println("Resolving layers to bundle:")
 	for _, layerPath := range parsedLayerPaths {
-		fmt.Printf("    - %s: ", layerPath.originalValue)
+		fmt.Printf("    - %-60s ", layerPath.originalValue+":")
 
 		var layer layerToBundle
 
@@ -413,7 +413,7 @@ func validateLayers(layersToBundle []layerToBundle) ([]validatedLayer, error) {
 	names := map[string]struct{}{}
 	allValid := true
 	for i, layerToBundle := range layersToBundle {
-		fmt.Printf("    - Layer %d: %s: ", i+1, layerToBundle.originalPathName)
+		fmt.Printf("    - Layer %d: %-60s ", i+1, layerToBundle.originalPathName+":")
 
 		layer, err := validateLayer(layerToBundle)
 		if err != nil {
@@ -450,10 +450,12 @@ func validateLayers(layersToBundle []layerToBundle) ([]validatedLayer, error) {
 				status = fmt.Sprintf("[Error]: %s", err)
 				allValid = false
 			}
-			fmt.Printf("        %s: %s\n", filename, status)
+			fmt.Printf("        %-30s: %s\n", filename, status)
 		}
 
 		layers = append(layers, *layer)
+
+		fmt.Println()
 	}
 
 	if allValid {
