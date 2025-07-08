@@ -445,7 +445,7 @@ func validateLayers(layersToBundle []layerToBundle) ([]validatedLayer, error) {
 			if err == nil {
 				status = "[Found]"
 			} else if os.IsNotExist(err) {
-				status = "[Not Found, but not required]"
+				status = "[Not Found]"
 			} else {
 				status = fmt.Sprintf("[Error]: %s", err)
 				allValid = false
