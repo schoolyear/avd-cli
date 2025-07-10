@@ -19,6 +19,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -439,7 +440,8 @@ func validateLayers(layersToBundle []layerToBundle) ([]validatedLayer, error) {
 			schema.V2OnUserLoginUserScriptFilename,
 		}
 		for _, filename := range filesToCheck {
-			filePath := filepath.Join(layerToBundle.path, filename)
+			// use path.join instead of filepath.join, because fs.FS always expects a forward slash, independent of OS
+			filePath := path.Join(layerToBundle.path, filename)
 			var status string
 			_, err := fs.Stat(layerToBundle.fs, filePath)
 			if err == nil {
@@ -477,7 +479,8 @@ func validateLayer(layer layerToBundle) (*validatedLayer, error) {
 		return nil, fmt.Errorf("layer path %s is not a directory", layer.path)
 	}
 
-	propertiesJson, _, err := lib.ReadJSONOrJSON5AsJSON(layer.fs, filepath.Join(layer.path, layerPropertiesFilename))
+	// use path.join instead of filepath.join, because fs.FS always expects a forward slash, independent of OS
+	propertiesJson, _, err := lib.ReadJSONOrJSON5AsJSON(layer.fs, path.Join(layer.path, layerPropertiesFilename))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read properties file")
 	}
