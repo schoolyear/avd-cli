@@ -81,7 +81,7 @@
   },
   build_parameters: {
     environment: {
-      description: "Which Schoolyear environment to build the image for. Default: prod",
+      description: "Which Schoolyear environment to build the image for.",
       enum: [
         "Development",
         "Testing",
