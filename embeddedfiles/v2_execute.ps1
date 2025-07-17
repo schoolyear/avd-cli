@@ -264,8 +264,7 @@ for ($layerIndex = 0; $layerIndex -lt $ValidLayers.Count; $layerIndex++) {
     if (Test-Path -Path $installScriptPath) {
         Write-Host " - Running installation script..."
         Push-Location $layerPath
-        try
-        {
+        try {
             # Check if we have parameters for this layer in the build parameters file
             $scriptParams = @{}
             if ($BuildParameters -and $BuildParameters.layers.PSObject.Properties.Name -contains $layerName) {
@@ -295,14 +294,12 @@ for ($layerIndex = 0; $layerIndex -lt $ValidLayers.Count; $layerIndex++) {
 
             if (!$?)
             {
-                throw "Installation script failed"
+               throw "Installation script failed"
             }
             Write-Host "Done" -ForegroundColor Green
-        }
-        catch
-        {
+        } catch {
             Write-Host "Error occurred in installation script for layer " -NoNewline -ForegroundColor Red
-            Write-Host "$( $layerName )" -NoNewline -ForegroundColor Magenta;
+            Write-Host "$( $layerName )" -NoNewline -ForegroundColor Magenta
             Write-Host ":" -ForegroundColor Red
             $_ | Write-ExceptionDetails
             exit 1
