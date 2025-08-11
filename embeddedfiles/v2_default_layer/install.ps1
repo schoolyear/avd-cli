@@ -1,11 +1,7 @@
 param (
     [Parameter(Mandatory=$true)]
     [ValidateSet("Development", "Testing", "Beta", "Production")]
-    [string]$environment,
-
-    [Parameter(Mandatory=$true)]
-    [ValidateSet("Arabic (Saudi Arabia)","Bulgarian (Bulgaria)","Chinese (Simplified, China)","Chinese (Traditional, Taiwan)","Croatian (Croatia)","Czech (Czech Republic)","Danish (Denmark)","Dutch (Netherlands)", "English (United Kingdom)", "Estonian (Estonia)", "Finnish (Finland)", "French (Canada)", "French (France)", "German (Germany)", "Greek (Greece)", "Hebrew (Israel)", "Hungarian (Hungary)", "Italian (Italy)", "Japanese (Japan)", "Korean (Korea)", "Latvian (Latvia)", "Lithuanian (Lithuania)", "Norwegian, Bokmål (Norway)", "Polish (Poland)", "Portuguese (Brazil)", "Portuguese (Portugal)", "Romanian (Romania)", "Russian (Russia)", "Serbian (Latin, Serbia)", "Slovak (Slovakia)", "Slovenian (Slovenia)", "Spanish (Mexico)", "Spanish (Spain)", "Swedish (Sweden)", "Thai (Thailand)", "Turkish (Turkey)", "Ukrainian (Ukraine)", "English (Australia)", "English (United States)")]
-    [string]$windowsLanguage
+    [string]$environment
 )
 
 # Recommended snippet to make sure PowerShell stops execution on failure
@@ -49,11 +45,6 @@ $ProgressPreference = 'SilentlyContinue'
 
     Push-Location; Write-Host "=== Executing UninstallTeams.ps1 ==="
     & .\install\UninstallTeams.ps1 -DisableOfficeTeamsInstall
-    Pop-Location
-
-    # Set language
-    Push-Location; Write-Host "=== Executing SetDefaultLang.ps1 ==="
-    & .\install\rds_templates\SetDefaultLang.ps1 -Language $windowsLanguage
     Pop-Location
 }
 
