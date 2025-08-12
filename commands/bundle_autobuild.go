@@ -20,6 +20,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -371,7 +372,7 @@ func validateBundle(bundlePath string) ([]avdimagetypes.V2LayerProperties, *avdi
 		filenames[f.Name] = f
 
 		// treat every top-level folder as a layer-name
-		layer, _, found := strings.Cut(f.Name, "/")
+		layer, _, found := strings.Cut(f.Name, string(filepath.Separator))
 		if found {
 			layerNames[layer] = struct{}{}
 		}
