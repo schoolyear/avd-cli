@@ -208,7 +208,7 @@ var BundleAutoDeployCommand = &cli.Command{
 			}
 		}
 		if foundSubscription == nil {
-			return errors.New("Azure CLI is not logged in to a tenant with the specified subscription-id")
+			return errors.New("Azure CLI is not logged in or logged into the wrong tenant. Try running 'az login'.")
 		} else {
 			fmt.Printf("Working in Subscription: %s (%s)\n", foundSubscription.Name, subscriptionId)
 		}
