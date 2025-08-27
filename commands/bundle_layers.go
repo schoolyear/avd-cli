@@ -6,6 +6,16 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path"
+	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/dustin/go-humanize"
 	"github.com/friendsofgo/errors"
 	"github.com/go-resty/resty/v2"
@@ -16,15 +26,6 @@ import (
 	"github.com/schoolyear/avd-cli/static"
 	avdimagetypes "github.com/schoolyear/avd-image-types"
 	"github.com/urfave/cli/v2"
-	"io"
-	"io/fs"
-	"os"
-	"path"
-	"path/filepath"
-	"slices"
-	"strconv"
-	"strings"
-	"time"
 )
 
 const layerPropertiesFilename = "properties" // (either json or json5)
@@ -174,6 +175,8 @@ type communityLayerPath struct {
 func parseLayerPaths(layerPaths []string) (layers []parsedLayerPath, hasCommunityLayers bool) {
 	layers = make([]parsedLayerPath, len(layerPaths))
 	for i, layerPath := range layerPaths {
+		layerPath = filepath.Clean(layerPath)
+
 		layer := parsedLayerPath{
 			originalValue: layerPath,
 		}
