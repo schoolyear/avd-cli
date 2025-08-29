@@ -496,8 +496,16 @@ func selectBaseImage(layers []avdimagetypes.V2LayerProperties, preselectedLayerN
 }
 
 func selectImageDefinition(existingImageDefinitions []lib.AzImageDefinition, tenantId, subscriptionId, rgName, galleryName string) (name string, err error) {
+	createURL := fmt.Sprintf("Create a new one here: https://portal.azure.com/#@%s/resource/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/galleries/%s/overview\n", tenantId, subscriptionId, rgName, galleryName)
+
+	if len(existingImageDefinitions) == 0 {
+		fmt.Println("No existing image definitions found")
+		fmt.Printf("Create a new one here: %s", createURL)
+		return "", errors.New("no existing image definitions found")
+	}
+
 	fmt.Println("You did not specify an Image Definition, please select an existing one or create a new one in the Azure Portal:")
-	fmt.Printf("Create a new one: https://portal.azure.com/#@%s/resource/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/galleries/%s/overview\n", tenantId, subscriptionId, rgName, galleryName)
+	fmt.Printf("Create a new one: %s\n", createURL)
 	fmt.Println("To select an image definition non-interactively, pass the --image-definition flag")
 
 	options := make([]string, len(existingImageDefinitions))
