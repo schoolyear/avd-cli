@@ -1,1 +1,7 @@
-.idea/
+/tmp
+bundle.zip
+bundle.json
+deploy.json
+params.json
+.idea
+.community-cache

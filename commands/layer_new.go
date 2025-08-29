@@ -9,14 +9,14 @@ import (
 	"path/filepath"
 )
 
-var ImageNewCommand = &cli.Command{
+var LayerNewCommand = &cli.Command{
 	Name:  "new",
-	Usage: "create a new image folder structure",
+	Usage: "create a new image layer folder structure",
 	Flags: []cli.Flag{
 		&cli.PathFlag{
 			Name:     "output",
 			Required: true,
-			Usage:    "Path in which the new image folder should be created",
+			Usage:    "Path in which the new image layer folder should be created",
 			Aliases:  []string{"o"},
 		},
 	},
@@ -32,11 +32,11 @@ var ImageNewCommand = &cli.Command{
 			return errors.Wrapf(err, "failed to convert target path to absolute path")
 		}
 
-		if err := lib.CopyDirectory(embeddedfiles.ImageTemplate, embeddedfiles.ImageTemplateBasePath, targetPath); err != nil {
-			return errors.Wrap(err, "failed to copy image template directory")
+		if err := lib.CopyDirectory(embeddedfiles.V2ImageTemplate, embeddedfiles.V2ImageTemplateBasePath, targetPath); err != nil {
+			return errors.Wrap(err, "failed to copy image layer template directory")
 		}
 
-		fmt.Println("created new image folder at", absTargetPath)
+		fmt.Println("created new image layer folder at", absTargetPath)
 
 		return nil
 	},

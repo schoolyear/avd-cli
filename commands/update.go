@@ -47,7 +47,7 @@ var UpdateCommand = &cli.Command{
 			return errors.Wrap(err, "failed to fetch latest version")
 		}
 
-		fmt.Printf("Current: \t%s\nLatest: \t%s\n", c.App.Version, latestVersion)
+		fmt.Printf("Current:     %s\nLatest:     %s\n", c.App.Version, latestVersion)
 		if latestVersion == c.App.Version {
 			fmt.Println("You are on the latest version already!")
 			return nil
@@ -61,11 +61,11 @@ var UpdateCommand = &cli.Command{
 			}
 		}
 
-		fmt.Printf("Download from:\t%s\n", latestDownloadURL)
-		fmt.Printf("Install to:\t%s\n", execPath)
+		fmt.Printf("Download from:    %s\n", latestDownloadURL)
+		fmt.Printf("Install to:    %s\n", execPath)
 
 		if !yesFlag {
-			selected, err := lib.PromptUserInput("Do you want to download & intall the update (yes/no): ")
+			selected, err := lib.PromptUserInput("Do you want to download & install the update (yes/no): ", nil)
 			if err != nil {
 				return errors.Wrap(err, "failed to prompt user for input")
 			}

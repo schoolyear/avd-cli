@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/fatih/color"
 	"github.com/schoolyear/avd-cli/commands"
 	"github.com/schoolyear/avd-cli/lib"
 	"github.com/schoolyear/avd-cli/static"
@@ -46,16 +47,31 @@ Visit https://avd.schoolyear.com for more information on how to use this tool.`,
 		Suggest: true,
 		Commands: cli.Commands{
 			{
+				Name:  "layer",
+				Usage: "manage image layers",
+				Subcommands: cli.Commands{
+					commands.LayerNewCommand,
+				},
+			},
+			{
+				Name:  "bundle",
+				Usage: "manage layer bundles",
+				Subcommands: cli.Commands{
+					commands.BundleLayersCommand,
+					commands.BundleAutoDeployCommand,
+				},
+			},
+			{
 				Name:  "image",
-				Usage: "manage images",
+				Usage: "manage images (used for v1 images)",
 				Subcommands: cli.Commands{
 					commands.ImageNewCommand,
-					commands.ImagePackage,
+					commands.ImagePackageCommand,
 				},
 			},
 			{
 				Name:  "package",
-				Usage: "manage image building packages",
+				Usage: "manage image building packages (used for v1 images)",
 				Subcommands: cli.Commands{
 					commands.PackageDeployCommand,
 				},
@@ -73,7 +89,7 @@ Visit https://avd.schoolyear.com for more information on how to use this tool.`,
 	}
 
 	if err := app.RunContext(ctx, os.Args); err != nil {
-		fmt.Println("Error:", err.Error())
+		color.Red("\n\nError: %v", err.Error())
 		os.Exit(1)
 	}
 }

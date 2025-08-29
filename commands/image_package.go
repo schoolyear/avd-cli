@@ -27,7 +27,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-var ImagePackage = &cli.Command{
+var ImagePackageCommand = &cli.Command{
 	Name:  "package",
 	Usage: "Build image package from image layers",
 	Flags: []cli.Flag{

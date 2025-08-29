@@ -11,13 +11,9 @@ import (
 )
 
 func UnmarshalJSONorJSON5File[T any](searchFs fs.FS, name string) (out *T, cleanJSON []byte, err error) {
-	data, isJSON5, err := ReadJSONOrJSON5File(searchFs, name)
+	data, _, err := ReadJSONOrJSON5AsJSON(searchFs, name)
 	if err != nil {
 		return nil, nil, err
-	}
-
-	if isJSON5 {
-		data = jsonc.New().Strip(data)
 	}
 
 	if err := json.Unmarshal(data, &out); err != nil {
@@ -45,6 +41,19 @@ func ReadJSONOrJSON5File(searchFs fs.FS, name string) (data []byte, isJSON5 bool
 	data, err = io.ReadAll(f)
 	if err != nil {
 		return nil, false, errors.Wrapf(err, "failed to read json file %s", path)
+	}
+
+	return data, isJSON5, nil
+}
+
+func ReadJSONOrJSON5AsJSON(searchFs fs.FS, name string) (data []byte, wasJSON5 bool, err error) {
+	data, isJSON5, err := ReadJSONOrJSON5File(searchFs, name)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if isJSON5 {
+		data = jsonc.New().Strip(data)
 	}
 
 	return data, isJSON5, nil
@@ -111,4 +120,24 @@ func (j *JSON5Unsupported[T]) UnmarshalJSON(bytes []byte) error {
 	}
 	j.V = v
 	return nil
+}
+
+type JSONCombinedMarshaller struct {
+	// Caller is responsible for making sure objects have no overlapping keys are marshal to JSON objects
+	Objects []any
+}
+
+func (j JSONCombinedMarshaller) MarshalJSON() ([]byte, error) {
+	out := []byte{'{'}
+	for i, obj := range j.Objects {
+		objOut, err := json.Marshal(obj)
+		if err != nil {
+			return nil, err
+		}
+		if i > 0 {
+			out = append(out, ',')
+		}
+		out = append(out, objOut[1:len(objOut)-1]...)
+	}
+	return append(out, '}'), nil
 }

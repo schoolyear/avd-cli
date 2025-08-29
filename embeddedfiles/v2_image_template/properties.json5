@@ -1,0 +1,31 @@
+{
+  version: 'v2',
+  name: 'com.example.imagename',
+  description: "Example description: short note on what this layer does",
+  author: {
+    name: 'John Doe (example org)',
+    email: 'j.doe@example.com'
+  },
+  platform_version: "2",
+  network: {
+    // HTTP(s) hosts that are whitelisted in the proxy
+    // note that the application must be configured to use the proxy or support Windows IE proxy settings
+    //
+    // list of whitelisted hostname:port combinations. Supports * wildcards
+    http_proxy_whitelist: [
+      // 'example.com:443', // (port 443 is HTTPS)
+      // '*.example.com:*', // (allow any port)
+    ],
+  },
+  build_parameters: {
+    exampleParameter: {
+      description: "This parameter is included as an example. You can remove it, if you remove it from the install.ps1 file as well",
+      // the enum & default fields are optional
+      enum: [
+        "Value 1",
+        "Value 2",
+      ],
+      default: "Value 1"
+    },
+  }
+}
