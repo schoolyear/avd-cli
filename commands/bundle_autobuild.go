@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/virtualmachineimagebuilder/armvirtualmachineimagebuilder/v2"
+	"github.com/fatih/color"
 	"github.com/friendsofgo/errors"
 	"github.com/schoolyear/avd-cli/embeddedfiles"
 	"github.com/schoolyear/avd-cli/lib"
@@ -197,7 +198,7 @@ var BundleAutoDeployCommand = &cli.Command{
 		if err != nil {
 			return errors.Wrap(err, "Azure CLI login check failed. Make sure you are logged in. You can run 'az login' (https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli?view=azure-cli-latest#sign-into-azure-with-azure-cli)")
 		}
-		fmt.Printf("[DONE]\n")
+		color.Green("[DONE]\n")
 
 		// check if subscription is in list of accounts
 		var foundSubscription *lib.AzAccount
@@ -210,7 +211,7 @@ var BundleAutoDeployCommand = &cli.Command{
 		if foundSubscription == nil {
 			return errors.New("Azure CLI is not logged in or logged into the wrong tenant. Try running 'az login'.")
 		} else {
-			fmt.Printf("Working in Subscription: %s (%s)\n", foundSubscription.Name, subscriptionId)
+			fmt.Printf("Working in Subscription: %s (%s)\n", color.GreenString(foundSubscription.Name), subscriptionId)
 		}
 
 		fmt.Println()
@@ -246,7 +247,8 @@ var BundleAutoDeployCommand = &cli.Command{
 				return fmt.Errorf("the specified Image Definition (%s) doesn't exist in the Image Gallery (%s)", imageDefinition, imageGallery)
 			}
 		}
-		fmt.Printf("Target Image Definition: %s/%s\n", imageGallery, imageDefinition)
+		fmt.Printf("Target Image Definition: ")
+		color.Green("%s/%s", imageGallery, imageDefinition)
 
 		fmt.Println()
 
@@ -269,7 +271,7 @@ var BundleAutoDeployCommand = &cli.Command{
 			return errors.Wrapf(err, "failed to calculate hash and size of bundle %s", bundlePath)
 		}
 		hashHex := hex.EncodeToString(hash)
-		fmt.Printf("[DONE] (sha256: %s)\n", hashHex)
+		color.Green("[DONE] (sha256: %s)", hashHex)
 
 		fmt.Printf("Uploading bundle archive to Azure Storage Account %s/%s...\n", storageAccount, blobContainer)
 		bundleArchiveBlobName := fmt.Sprintf("bundle-%s.zip", hashHex)
@@ -324,7 +326,7 @@ var BundleAutoDeployCommand = &cli.Command{
 		if _, err := deploymentTemplateFile.Write(deploymentTemplateBytes); err != nil {
 			return errors.Wrap(err, "failed to write deployment template to disk")
 		}
-		fmt.Println("[DONE]")
+		color.Green("[DONE]")
 
 		fmt.Println()
 
@@ -349,7 +351,7 @@ var BundleAutoDeployCommand = &cli.Command{
 				return errors.Wrap(err, "failed to create deployment template")
 			}
 
-			fmt.Println("Image Template deployed successfully. You can now see the image builder in the Azure Portal: https://portal.azure.com/#view/Microsoft_Azure_WVD/WvdManagerMenuBlade/~/customImageTemplate")
+			color.HiGreen("Image Template deployed successfully. You can now see the image builder in the Azure Portal: https://portal.azure.com/#view/Microsoft_Azure_WVD/WvdManagerMenuBlade/~/customImageTemplate")
 		}
 
 		return nil
@@ -496,17 +498,18 @@ func selectBaseImage(layers []avdimagetypes.V2LayerProperties, preselectedLayerN
 }
 
 func selectImageDefinition(existingImageDefinitions []lib.AzImageDefinition, tenantId, subscriptionId, rgName, galleryName string) (name string, err error) {
-	createURL := fmt.Sprintf("Create a new one here: https://portal.azure.com/#@%s/resource/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/galleries/%s/overview\n", tenantId, subscriptionId, rgName, galleryName)
+	createURL := fmt.Sprintf("https://portal.azure.com/#@%s/resource/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/galleries/%s/overview", tenantId, subscriptionId, rgName, galleryName)
 
 	if len(existingImageDefinitions) == 0 {
-		fmt.Println("No existing image definitions found")
-		fmt.Printf("Create a new one here: %s", createURL)
+		color.Magenta("No existing image definitions found")
+		color.Magenta("Create a new one here: %s", createURL)
 		return "", errors.New("no existing image definitions found")
 	}
 
-	fmt.Println("You did not specify an Image Definition, please select an existing one or create a new one in the Azure Portal:")
-	fmt.Printf("Create a new one: %s\n", createURL)
-	fmt.Println("To select an image definition non-interactively, pass the --image-definition flag")
+	color.Cyan("You did not specify an Image Definition, please select an existing one or create a new one in the Azure Portal:")
+	color.Cyan("To create a new one: %s", createURL)
+	color.Cyan("To select an image definition non-interactively, pass the --image-definition flag")
+	fmt.Println()
 
 	options := make([]string, len(existingImageDefinitions))
 	for i, def := range existingImageDefinitions {
@@ -517,7 +520,7 @@ func selectImageDefinition(existingImageDefinitions []lib.AzImageDefinition, ten
 		idx := 0
 		defaultIdx = &idx
 	}
-	idx, err := lib.PromptEnum("Select an Image Definition", options, "", defaultIdx)
+	idx, err := lib.PromptEnum(color.MagentaString("Select an Image Definition"), options, "", defaultIdx)
 	if err != nil {
 		return "", err
 	}

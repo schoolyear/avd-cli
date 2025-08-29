@@ -3,6 +3,7 @@ package lib
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/fatih/color"
 	"github.com/friendsofgo/errors"
 	"github.com/go-resty/resty/v2"
 	"github.com/schoolyear/avd-cli/static"
@@ -26,7 +27,7 @@ func GithubDeviceFlow(client *resty.Client, clientId string, checkKeyringCache, 
 		} else {
 			var keyringValue githubTokenKeyringValue
 			if err := json.Unmarshal([]byte(value), &keyringValue); err != nil {
-				fmt.Println("ERROR: Failed to parse github secret from local keyring")
+				color.HiRed("ERROR: Failed to parse github secret from local keyring")
 			} else if time.Now().Before(keyringValue.ExpiresAt) {
 				return keyringValue.AccessToken, nil
 			}
@@ -38,11 +39,11 @@ func GithubDeviceFlow(client *resty.Client, clientId string, checkKeyringCache, 
 		return "", errors.Wrap(err, "failed to start device flow")
 	}
 
-	fmt.Println("Log into GitHub:", reason)
-	fmt.Println("    1. Open:", startRes.VerificationURI)
-	fmt.Println("    2. Enter:", startRes.UserCode)
-	fmt.Println(`    3. Click "Authorize"`)
-	fmt.Println("    4. Return here")
+	color.Magenta("Log into GitHub: %s", reason)
+	color.Magenta("    1. Open: %s", startRes.VerificationURI)
+	color.Magenta("    2. Enter: %s", startRes.UserCode)
+	color.Magenta(`    3. Click "Authorize"`)
+	color.Magenta("    4. Return here")
 	fmt.Printf("Waiting...")
 
 	for {

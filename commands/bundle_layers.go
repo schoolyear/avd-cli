@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/fatih/color"
 	"io"
 	"io/fs"
 	"os"
@@ -422,19 +423,19 @@ func validateLayers(layersToBundle []layerToBundle) ([]validatedLayer, error) {
 		layer, err := validateLayer(layerToBundle)
 		if err != nil {
 			allValid = false
-			fmt.Printf("[Invalid]: \n        %s\n", strings.ReplaceAll(err.Error(), "\n", "\n        "))
+			color.HiRed("[Invalid]: \n        %s\n", strings.ReplaceAll(err.Error(), "\n", "\n        "))
 			continue
 		}
 
 		if _, exists := names[layer.properties.Name]; exists {
 			allValid = false
-			fmt.Printf("[Invalid]: layer name must be unique. %s already exists\n", layer.properties.Name)
+			color.HiRed("[Invalid]: layer name must be unique. %s already exists\n", layer.properties.Name)
 			continue
 		} else {
 			names[layer.properties.Name] = struct{}{}
 		}
 
-		fmt.Printf("[Valid]: %s\n", layer.properties.Name)
+		color.Green("[Valid]: %s\n", layer.properties.Name)
 
 		filesToCheck := []string{
 			schema.V2InstallScriptFilename,
@@ -448,11 +449,11 @@ func validateLayers(layersToBundle []layerToBundle) ([]validatedLayer, error) {
 			var status string
 			_, err := fs.Stat(layerToBundle.fs, filePath)
 			if err == nil {
-				status = "[Found]"
+				status = color.GreenString("[Found]")
 			} else if os.IsNotExist(err) {
-				status = "[Not Found]"
+				status = color.CyanString("[Not Found]")
 			} else {
-				status = fmt.Sprintf("[Error]: %s", err)
+				status = color.HiRedString("[Error]: %s", err)
 				allValid = false
 			}
 			fmt.Printf("        %-30s: %s\n", filename, status)
@@ -464,7 +465,7 @@ func validateLayers(layersToBundle []layerToBundle) ([]validatedLayer, error) {
 	}
 
 	if allValid {
-		fmt.Println("All layers are valid")
+		color.HiGreen("All layers are valid")
 	} else {
 		return nil, errors.New("all layers must be valid to continue")
 	}
@@ -597,7 +598,7 @@ func resolveLayerParameterInteractively(param avdimagetypes.LayerParameter) (val
 				defaultIdx = &idx
 			}
 		}
-		idx, err := lib.PromptEnum("Pick one", options, "            ", defaultIdx)
+		idx, err := lib.PromptEnum(color.MagentaString("Pick one"), options, "            ", defaultIdx)
 		if err != nil {
 			return "", err
 		}

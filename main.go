@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/fatih/color"
 	"github.com/schoolyear/avd-cli/commands"
 	"github.com/schoolyear/avd-cli/lib"
 	"github.com/schoolyear/avd-cli/static"
@@ -88,7 +89,7 @@ Visit https://avd.schoolyear.com for more information on how to use this tool.`,
 	}
 
 	if err := app.RunContext(ctx, os.Args); err != nil {
-		fmt.Println("\n\nError:", err.Error())
+		color.Red("\n\nError: %v", err.Error())
 		os.Exit(1)
 	}
 }
