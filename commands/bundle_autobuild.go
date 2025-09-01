@@ -8,6 +8,14 @@ import (
 	"encoding/json"
 	stdErr "errors"
 	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"time"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/virtualmachineimagebuilder/armvirtualmachineimagebuilder/v2"
 	"github.com/fatih/color"
@@ -17,13 +25,6 @@ import (
 	"github.com/schoolyear/avd-cli/schema"
 	avdimagetypes "github.com/schoolyear/avd-image-types"
 	"github.com/urfave/cli/v2"
-	"io"
-	"io/fs"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
-	"time"
 )
 
 var BundleAutoDeployCommand = &cli.Command{
@@ -625,10 +626,11 @@ func buildImageTemplate(
 				}
 			})(),
 			BuildTimeoutInMinutes: to.Ptr(buildTimeoutMinutes),
-			Customize:             buildCustomizationSteps(bundleHashHex, bundleUri),
+			Customize:             buildCustomizationSteps(managedIdentityId, bundleUri),
 			VMProfile: &armvirtualmachineimagebuilder.ImageTemplateVMProfile{
-				OSDiskSizeGB: to.Ptr(builderDiskSize),
-				VMSize:       to.Ptr(builderVmSize),
+				OSDiskSizeGB:           to.Ptr(builderDiskSize),
+				VMSize:                 to.Ptr(builderVmSize),
+				UserAssignedIdentities: to.SliceOfPtrs(managedIdentityId),
 			},
 			Optimize: &armvirtualmachineimagebuilder.ImageTemplatePropertiesOptimize{
 				VMBoot: &armvirtualmachineimagebuilder.ImageTemplatePropertiesOptimizeVMBoot{
@@ -712,26 +714,23 @@ func buildTemplateDistributor(galleryImageId string, targetRegions []string, rep
 	}
 }
 
-func buildCustomizationSteps(bundleHashHex string, bundleSourceUri string) []armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification {
+func buildCustomizationSteps(managedIdentityId, bundleSourceUri string) []armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification {
 	const imageBundleZipFilepath = `C:\image_bundle.zip`
 	const imageBundleFilepath = `C:\image_bundle`
 
 	return []armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification{
-		// download zip
-		&armvirtualmachineimagebuilder.ImageTemplateFileCustomizer{
-			Type:           to.Ptr("File"),
-			Destination:    to.Ptr(imageBundleZipFilepath),
-			Name:           to.Ptr("Download bundle"),
-			SHA256Checksum: to.Ptr(bundleHashHex),
-			SourceURI:      to.Ptr(bundleSourceUri),
-		},
-
 		// Run PowerShell
 		&armvirtualmachineimagebuilder.ImageTemplatePowerShellCustomizer{
 			Type: to.Ptr("PowerShell"),
 			Inline: to.SliceOfPtrs(
 				`Write-Host "Set error action to 'stop'"`,
 				`$ErrorActionPreference = "Stop"`,
+				`Write-Host "Fetching access token for managed identity"`,
+				fmt.Sprintf(`$response = Invoke-RestMethod -Uri 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://storage.azure.com/&mi_res_id=%s' -Headers @{Metadata="true"}`, managedIdentityId),
+				`$accessToken = $response.access_token`,
+				`$headers = @{'Authorization' = "Bearer $accessToken"; 'x-ms-version' = "2020-04-08"}`,
+				fmt.Sprintf(`Write-Host "Downloading bundle, from: %s to: %s"`, bundleSourceUri, imageBundleZipFilepath),
+				fmt.Sprintf(`Invoke-WebRequest -Uri '%s' -Headers $headers -OutFile '%s'`, bundleSourceUri, imageBundleZipFilepath),
 				`Write-Host "Extracting bundle archive"`,
 				fmt.Sprintf(`Expand-Archive -LiteralPath '%s' -DestinationPath '%s'`, imageBundleZipFilepath, imageBundleFilepath),
 				`Write-Host "Entering the bundle directory"`,
