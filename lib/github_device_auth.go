@@ -39,11 +39,11 @@ func GithubDeviceFlow(client *resty.Client, clientId string, checkKeyringCache, 
 		return "", errors.Wrap(err, "failed to start device flow")
 	}
 
-	color.Magenta("Log into GitHub: %s", reason)
-	color.Magenta("    1. Open: %s", startRes.VerificationURI)
-	color.Magenta("    2. Enter: %s", startRes.UserCode)
-	color.Magenta(`    3. Click "Authorize"`)
-	color.Magenta("    4. Return here")
+	color.Yellow("Log into GitHub: %s", reason)
+	color.Yellow("    1. Open: %s", startRes.VerificationURI)
+	color.Yellow("    2. Enter: %s", startRes.UserCode)
+	color.Yellow(`    3. Click "Authorize"`)
+	color.Yellow("    4. Return here")
 	fmt.Printf("Waiting...")
 
 	for {

@@ -598,7 +598,7 @@ func resolveLayerParameterInteractively(param avdimagetypes.LayerParameter) (val
 				defaultIdx = &idx
 			}
 		}
-		idx, err := lib.PromptEnum(color.MagentaString("Pick one"), options, "            ", defaultIdx)
+		idx, err := lib.PromptEnum(color.YellowString("Pick one"), options, "            ", defaultIdx)
 		if err != nil {
 			return "", err
 		}

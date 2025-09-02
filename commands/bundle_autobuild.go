@@ -501,8 +501,8 @@ func selectImageDefinition(existingImageDefinitions []lib.AzImageDefinition, ten
 	createURL := fmt.Sprintf("https://portal.azure.com/#@%s/resource/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/galleries/%s/overview", tenantId, subscriptionId, rgName, galleryName)
 
 	if len(existingImageDefinitions) == 0 {
-		color.Magenta("No existing image definitions found")
-		color.Magenta("Create a new one here: %s", createURL)
+		color.Yellow("No existing image definitions found")
+		color.Yellow("Create a new one here: %s", createURL)
 		return "", errors.New("no existing image definitions found")
 	}
 
@@ -520,7 +520,7 @@ func selectImageDefinition(existingImageDefinitions []lib.AzImageDefinition, ten
 		idx := 0
 		defaultIdx = &idx
 	}
-	idx, err := lib.PromptEnum(color.MagentaString("Select an Image Definition"), options, "", defaultIdx)
+	idx, err := lib.PromptEnum(color.YellowString("Select an Image Definition"), options, "", defaultIdx)
 	if err != nil {
 		return "", err
 	}
