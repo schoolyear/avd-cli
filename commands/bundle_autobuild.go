@@ -295,7 +295,6 @@ var BundleAutoDeployCommand = &cli.Command{
 			managedIdentity,
 			int32(buildTimeout),
 			start,
-			hashHex,
 			fmt.Sprintf("https://%s.blob.core.windows.net/%s/%s", storageAccount, blobContainer, bundleArchiveBlobName),
 			builderVmSize,
 			int32(builderDiskSize),
@@ -587,7 +586,6 @@ func buildImageTemplate(
 	buildTimeoutMinutes int32,
 	autoStart bool,
 
-	bundleHashHex string,
 	bundleUri string,
 
 	builderVmSize string,
