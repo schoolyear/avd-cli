@@ -86,12 +86,6 @@ var BundleAutoDeployCommand = &cli.Command{
 			Aliases:  []string{"reg"},
 		},
 		&cli.StringFlag{
-			Name:    "builder-size",
-			Usage:   "VM size to use for the builder",
-			Value:   "Standard_D2s_v4",
-			Aliases: []string{"size"},
-		},
-		&cli.StringFlag{
 			Name:  "builder-vm-size",
 			Usage: "VM size to use for the builder",
 			Value: "Standard_D2s_v4",
