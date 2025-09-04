@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -720,7 +721,7 @@ func buildCustomizationSteps(managedIdentityId, bundleSourceUri string) []armvir
 				`Write-Host "Set progressPreference to silentlyContinue"`,
 				`$ProgressPreference = "SilentlyContinue"`,
 				`Write-Host "Fetching access token for managed identity"`,
-				fmt.Sprintf(`try { $response = Invoke-RestMethod -Uri 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://storage.azure.com/&mi_res_id=%s' -Headers @{Metadata="true"} } catch { Write-Error "Failed to request data from metadata endpoint: $_" }`, managedIdentityId),
+				fmt.Sprintf(`try { $response = Invoke-RestMethod -Uri 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=%s&mi_res_id=%s' -Headers @{Metadata="true"} } catch { Write-Error "Failed to request data from metadata endpoint: $_" }`, url.QueryEscape("https://storage.azure.com/"), url.QueryEscape(managedIdentityId)),
 				`$accessToken = $response.access_token`,
 				`$headers = @{'Authorization' = "Bearer $accessToken"; 'x-ms-version' = "2020-04-08"}`,
 				fmt.Sprintf(`Write-Host "Downloading bundle, from: %s to: %s"`, bundleSourceUri, imageBundleZipFilepath),
