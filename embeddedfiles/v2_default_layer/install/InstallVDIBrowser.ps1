@@ -8,10 +8,10 @@ $ErrorActionPreference = "Stop"
 
 # Map environment to appropriate URL
 $environmentUrls = @{
-    "Development" = "https://dev.install.exams.schoolyear.app/schoolyear-exams-browser-win-3.14.1.msi"
-    "Testing" = "https://testing.install.exams.schoolyear.app/schoolyear-exams-browser-win-3.14.1.msi"
-    "Beta" = "https://beta.install.exams.schoolyear.app/schoolyear-exams-browser-win-3.14.1.msi"
-    "Production" = "https://install.exams.schoolyear.app/schoolyear-exams-browser-win-3.14.1.msi"
+    "Development" = "https://dev.install.exams.schoolyear.app/schoolyear-exams-browser-win-3.14.2.msi"
+    "Testing" = "https://testing.install.exams.schoolyear.app/schoolyear-exams-browser-win-3.14.2.msi"
+    "Beta" = "https://beta.install.exams.schoolyear.app/schoolyear-exams-browser-win-3.14.2.msi"
+    "Production" = "https://install.exams.schoolyear.app/schoolyear-exams-browser-win-3.14.2.msi"
 }
 
 $vdiBrowserUrl = $environmentUrls[$environment]
