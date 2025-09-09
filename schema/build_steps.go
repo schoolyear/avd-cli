@@ -68,13 +68,13 @@ func HardcodedBuildSteps(sha256Checksum string) (pre BuildSteps, post BuildSteps
 				SourceURI:      to.Ptr(SourceURIPlaceholder),
 			}},
 			{V: &armvirtualmachineimagebuilder.ImageTemplatePowerShellCustomizer{
-				Type:        to.Ptr("PowerShell"),
-				Inline:      to.SliceOfPtrs(`Expand-Archive -LiteralPath "C:\imagebuild_resources.zip" -DestinationPath "C:\imagebuild_resources"`,
-				// sometimes it seems to take a while before Windows releases the folders, making a consectuive step fail
-											`Write-Host "Starting sleep for extraction imagebuild resources"`,
-                    						`Start-Sleep -Seconds 180`,
-                    						`Write-Host "Sleep ended."`
-											),
+				Type: to.Ptr("PowerShell"),
+				Inline: to.SliceOfPtrs(`Expand-Archive -LiteralPath "C:\imagebuild_resources.zip" -DestinationPath "C:\imagebuild_resources"`,
+					// sometimes it seems to take a while before Windows releases the folders, making a consectuive step fail
+					`Write-Host "Starting sleep for extraction imagebuild resources"`,
+					`Start-Sleep -Seconds 180`,
+					`Write-Host "Sleep ended."`,
+				),
 				Name:        to.Ptr("Extract resources archive"),
 				RunAsSystem: to.Ptr(true),
 				RunElevated: to.Ptr(true),
