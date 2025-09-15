@@ -98,6 +98,8 @@ $LayerNames = @{}
 
 Write-Host "`nValidating layers..."
 
+$validLayerVersions = @("v2", "v2.1")
+
 foreach ($path in $LayerPaths) {
     $validationErrors = @()
     $layerName = ""
@@ -139,8 +141,8 @@ foreach ($path in $LayerPaths) {
                 $properties = $content | ConvertFrom-Json
 
                 # Validate version
-                if (-not $properties.version -or $properties.version -ne "v2") {
-                    $validationErrors += "Invalid or missing 'version' property. Must be 'v2'"
+                if (-not $properties.version -or $properties.version -notin $validLayerVersions) {
+                    $validationErrors += "Invalid or missing 'version' property. Must be one of $($validLayerVersions -join ', ')"
                 }
 
                 # Validate name
