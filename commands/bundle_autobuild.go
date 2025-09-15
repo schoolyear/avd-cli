@@ -300,6 +300,7 @@ var BundleAutoDeployCommand = &cli.Command{
 			excludeFromLatest,
 			replicationRegions,
 			bundlePropsBlobUri,
+			layers,
 		)
 
 		deploymentTemplate := buildDeploymentTemplate(imageTemplate)
@@ -595,6 +596,8 @@ func buildImageTemplate(
 	targetRegions []string,
 
 	bundlePropertiesUri string,
+
+	layerProperties []avdimagetypes.V2LayerProperties,
 ) *armvirtualmachineimagebuilder.ImageTemplate {
 	return &armvirtualmachineimagebuilder.ImageTemplate{
 		Identity: &armvirtualmachineimagebuilder.ImageTemplateIdentity{
@@ -619,7 +622,7 @@ func buildImageTemplate(
 				}
 			})(),
 			BuildTimeoutInMinutes: to.Ptr(buildTimeoutMinutes),
-			Customize:             buildCustomizationSteps(managedIdentityId, bundleUri),
+			Customize:             buildCustomizationSteps(layerProperties, managedIdentityId, bundleUri),
 			VMProfile: &armvirtualmachineimagebuilder.ImageTemplateVMProfile{
 				OSDiskSizeGB:           to.Ptr(builderDiskSize),
 				VMSize:                 to.Ptr(builderVmSize),
@@ -707,12 +710,41 @@ func buildTemplateDistributor(galleryImageId string, targetRegions []string, rep
 	}
 }
 
-func buildCustomizationSteps(managedIdentityId, bundleSourceUri string) []armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification {
+func buildCustomizationSteps(layerProperties []avdimagetypes.V2LayerProperties, managedIdentityId, bundleSourceUri string) []armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification {
 	const imageBundleZipFilepath = `C:\image_bundle.zip`
 	const imageBundleFilepath = `C:\image_bundle`
 
-	return []armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification{
-		// Run PowerShell
+	preCustomizers, postCustomizer := extractPreAndPostCustomizersFromLayerProperties(layerProperties)
+
+	customizers := make([]armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification, 0, 3+len(preCustomizers)+len(postCustomizer))
+
+	// Extract Bundle
+	customizers = append(customizers, &armvirtualmachineimagebuilder.ImageTemplatePowerShellCustomizer{
+		Type:        to.Ptr("PowerShell"),
+		Name:        to.Ptr("BundleExtraction"),
+		RunAsSystem: to.Ptr(true),
+		RunElevated: to.Ptr(true),
+		Inline: to.SliceOfPtrs(
+			`Write-Host "Setting error action to 'stop'"`,
+			`$ErrorActionPreference = "Stop"`,
+			`Write-Host "Set progressPreference to 'silentlyContinue'"`,
+			`$ProgressPreference = "SilentlyContinue"`,
+			`Write-Host "Fetching access token for managed identity"`,
+			fmt.Sprintf(`try { $response = Invoke-RestMethod -Uri 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=%s&mi_res_id=%s' -Headers @{Metadata="true"} } catch { Write-Error "Failed to request data from metadata endpoint: $_" }`, url.QueryEscape("https://storage.azure.com/"), url.QueryEscape(managedIdentityId)),
+			`$accessToken = $response.access_token`,
+			`$headers = @{'Authorization' = "Bearer $accessToken"; 'x-ms-version' = "2020-04-08"}`,
+			fmt.Sprintf(`Write-Host "Downloading bundle, from: %s to: %s"`, bundleSourceUri, imageBundleZipFilepath),
+			fmt.Sprintf(`try { Invoke-WebRequest -Uri '%s' -Headers $headers -OutFile '%s' } catch { Write-Error "An error occured during bundle download: $_" }`, bundleSourceUri, imageBundleZipFilepath),
+			`Write-Host "Extracting bundle archive"`,
+			fmt.Sprintf(`Expand-Archive -LiteralPath '%s' -DestinationPath '%s'`, imageBundleZipFilepath, imageBundleFilepath),
+		),
+	})
+
+	// Pre customizers
+	customizers = append(customizers, preCustomizers...)
+
+	// Our main bundle execution + windows restart
+	customizers = append(customizers,
 		&armvirtualmachineimagebuilder.ImageTemplatePowerShellCustomizer{
 			Type: to.Ptr("PowerShell"),
 			Inline: to.SliceOfPtrs(
@@ -720,14 +752,6 @@ func buildCustomizationSteps(managedIdentityId, bundleSourceUri string) []armvir
 				`$ErrorActionPreference = "Stop"`,
 				`Write-Host "Set progressPreference to silentlyContinue"`,
 				`$ProgressPreference = "SilentlyContinue"`,
-				`Write-Host "Fetching access token for managed identity"`,
-				fmt.Sprintf(`try { $response = Invoke-RestMethod -Uri 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=%s&mi_res_id=%s' -Headers @{Metadata="true"} } catch { Write-Error "Failed to request data from metadata endpoint: $_" }`, url.QueryEscape("https://storage.azure.com/"), url.QueryEscape(managedIdentityId)),
-				`$accessToken = $response.access_token`,
-				`$headers = @{'Authorization' = "Bearer $accessToken"; 'x-ms-version' = "2020-04-08"}`,
-				fmt.Sprintf(`Write-Host "Downloading bundle, from: %s to: %s"`, bundleSourceUri, imageBundleZipFilepath),
-				fmt.Sprintf(`try { Invoke-WebRequest -Uri '%s' -Headers $headers -OutFile '%s' } catch { Write-Error "An error occured during bundle download: $_" }`, bundleSourceUri, imageBundleZipFilepath),
-				`Write-Host "Extracting bundle archive"`,
-				fmt.Sprintf(`Expand-Archive -LiteralPath '%s' -DestinationPath '%s'`, imageBundleZipFilepath, imageBundleFilepath),
 				`Write-Host "Entering the bundle directory"`,
 				fmt.Sprintf(`Push-Location "%s"`, imageBundleFilepath),
 				`Write-Host "Executing bundle"`,
@@ -742,17 +766,49 @@ func buildCustomizationSteps(managedIdentityId, bundleSourceUri string) []armvir
 				`((Get-Content -path C:\\DeprovisioningScript.ps1 -Raw) -replace 'Sysprep.exe /oobe /generalize /quiet /quit','Sysprep.exe /oobe /generalize /quit /mode:vm' ) | Set-Content -Path C:\\DeprovisioningScript.ps1`,
 				`Write-Host "Ready for sysprep"`,
 			),
-			Name:        to.Ptr("build"),
+			Name:        to.Ptr("BundleExecution"),
 			RunAsSystem: to.Ptr(true),
 			RunElevated: to.Ptr(true),
 		},
-
-		// not restarting may cause sysprep to fail (stuck in IMAGE_STATE_COMPLETE loop)
 		&armvirtualmachineimagebuilder.ImageTemplateRestartCustomizer{
 			Type: to.Ptr("WindowsRestart"),
-			Name: to.Ptr("Restart before sysprep"),
+			Name: to.Ptr("PostBundleExecutionRestart"),
 		},
+	)
+
+	// Post customizers
+	customizers = append(customizers, postCustomizer...)
+
+	return customizers
+}
+
+func extractPreAndPostCustomizersFromLayerProperties(layerProperties []avdimagetypes.V2LayerProperties) ([]armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification, []armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification) {
+	var (
+		pre  []armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification
+		post []armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification
+	)
+
+	for _, lp := range layerProperties {
+		if lp.Customizers == nil {
+			continue
+		}
+
+		if lp.Customizers.Pre != nil {
+			pre = make([]armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification, len(lp.Customizers.Pre))
+			for i, preCustomizer := range lp.Customizers.Pre {
+				pre[i] = lib.CustomizerToArmImageTemplateCustomizer(preCustomizer)
+			}
+		}
+
+		if lp.Customizers.Post != nil {
+			post = make([]armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification, len(lp.Customizers.Post))
+			for i, postCustomizer := range lp.Customizers.Post {
+				post[i] = lib.CustomizerToArmImageTemplateCustomizer(postCustomizer)
+			}
+		}
 	}
+
+	return pre, post
 }
 
 func buildDeploymentTemplate(imageTemplate *armvirtualmachineimagebuilder.ImageTemplate) map[string]any {

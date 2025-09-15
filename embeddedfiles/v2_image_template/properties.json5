@@ -1,10 +1,10 @@
 {
-  version: 'v2',
-  name: 'com.example.imagename',
+  version: "v2",
+  name: "com.example.imagename",
   description: "Example description: short note on what this layer does",
   author: {
-    name: 'John Doe (example org)',
-    email: 'j.doe@example.com'
+    name: "John Doe (example org)",
+    email: "j.doe@example.com"
   },
   platform_version: "2",
   network: {

@@ -126,7 +126,7 @@ foreach ($path in $LayerPaths) {
 
                 # Handle JSON5 features (improved comment handling)
                 # Remove single-line comments that start with //
-                $content = $content -replace '//.*?(?=[\r\n]|$)', ""
+                $content = $content -replace '(?m)^\s*//.*?(?=[\r\n]|$)', ""
                 # Remove multi-line comments /* ... */
                 $content = $content -replace '/\*[\s\S]*?\*/', ""
                 # Allow trailing commas in objects and arrays

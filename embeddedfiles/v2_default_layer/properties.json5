@@ -1,10 +1,10 @@
 {
-  version: 'v2',
-  name: 'com.schoolyear.avd',
-  description: 'The default built-in Schoolyear layer, included in every bundle',
+  version: "v2",
+  name: "com.schoolyear.avd",
+  description: "The default built-in Schoolyear layer, included in every bundle",
   author: {
-    name: 'Schoolyear',
-    email: 'avd@schoolyear.com'
+    name: "Schoolyear",
+    email: "avd@schoolyear.com"
   },
   platform_version: "2",
   network: {
