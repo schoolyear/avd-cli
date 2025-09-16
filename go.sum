@@ -81,8 +81,8 @@ github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/schollz/progressbar/v3 v3.14.6 h1:GyjwcWBAf+GFDMLziwerKvpuS7ZF+mNTAXIB2aspiZs=
 github.com/schollz/progressbar/v3 v3.14.6/go.mod h1:Nrzpuw3Nl0srLY0VlTvC4V6RL50pcEymjy6qyJAaLa0=
-github.com/schoolyear/avd-image-types v0.0.28 h1:RXGrhcS+UIBisR9AxDQxAzO6p467hjFtBt1NqofhF9o=
-github.com/schoolyear/avd-image-types v0.0.28/go.mod h1:D6h1TrvWO+loQDtAG0xoWwwArE1ocgOMffT0FgkCMeI=
+github.com/schoolyear/avd-image-types v0.0.29 h1:xYZpAwXh8aClMic5zg93J1R6g533VhUc78ZYQN1ppFE=
+github.com/schoolyear/avd-image-types v0.0.29/go.mod h1:D6h1TrvWO+loQDtAG0xoWwwArE1ocgOMffT0FgkCMeI=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.5.2 h1:xuMeJ0Sdp5ZMRXx/aWO6RZxdr3beISkG5/G/aIRr3pY=
 github.com/stretchr/objx v0.5.2/go.mod h1:FRsXN1f5AsAjCGJKqEizvkpNtU+EGNCLh3NxZ/8L+MA=

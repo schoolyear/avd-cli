@@ -21,7 +21,7 @@ require (
 	github.com/inhies/go-bytesize v0.0.0-20220417184213-4913239db9cf
 	github.com/joho/godotenv v1.5.1
 	github.com/schollz/progressbar/v3 v3.14.6
-	github.com/schoolyear/avd-image-types v0.0.28
+	github.com/schoolyear/avd-image-types v0.0.29
 	github.com/stretchr/testify v1.10.0
 	github.com/urfave/cli/v2 v2.27.4
 	github.com/zalando/go-keyring v0.2.6
