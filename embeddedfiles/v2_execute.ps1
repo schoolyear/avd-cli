@@ -7,9 +7,6 @@ param (
     [switch]$ScanForDirectories = $false,
 
     [Parameter(Mandatory=$false)]
-    [switch]$NoCleanup = $false,
-
-    [Parameter(Mandatory=$false)]
     [switch]$Force = $false,
 
     [Parameter(Mandatory=$false)]
@@ -75,7 +72,6 @@ if (($LayerPaths -and $ScanForDirectories) -or (-not $LayerPaths -and -not $Scan
     Write-Host "  .\v2_execute.ps1 -LayerPaths '.\layer1','..\layer2','C:\layer3'" -ForegroundColor Yellow
     Write-Host "  .\v2_execute.ps1 -ScanForDirectories" -ForegroundColor Yellow
     Write-Host "  .\v2_execute.ps1 -LayerPaths '.\layer1' -BuildParametersPath 'path\to\custom_parameters.json'" -ForegroundColor Yellow
-    Write-Host "  Add -NoCleanup to either command to prevent removing layer directories after processing" -ForegroundColor Yellow
     Write-Host "  Add -Force to either command to skip all prompts (processing and cleanup)" -ForegroundColor Yellow
     exit 1
 }
@@ -350,48 +346,6 @@ for ($layerIndex = 0; $layerIndex -lt $ValidLayers.Count; $layerIndex++) {
     }
 
     Write-Host "Layer processing completed: $layerName`n" -ForegroundColor Cyan
-}
-
-## Cleanup
-# By default, cleanup is enabled but will prompt before deletion
-# If the NoCleanup flag is set, skip the cleanup entirely
-Write-Host "Cleanup phase:"
-
-if (-not $NoCleanup) {
-    Write-Host "Cleanup is enabled by default." -ForegroundColor Yellow
-
-    $proceedWithCleanup = $false
-    if ($Force) {
-        Write-Host "Force flag set, proceeding with automatic cleanup..." -ForegroundColor Yellow
-        $proceedWithCleanup = $true
-    } else {
-        $cleanupConfirmation = Read-Host "Do you want to delete all layer directories? (Y/N)"
-        $proceedWithCleanup = ($cleanupConfirmation -eq "Y" -or $cleanupConfirmation -eq "y")
-    }
-
-    if ($proceedWithCleanup) {
-        Write-Host "Deleting all layer directories..." -ForegroundColor Yellow
-
-        foreach ($layer in $ValidLayers) {
-            $layerPath = $layer.Path
-            $layerName = $layer.Properties.name
-
-            Write-Host " - Removing layer directory: $layerName ($layerPath)" -ForegroundColor Yellow
-            try {
-                Remove-Item -Path $layerPath -Recurse -Force
-                Write-Host "   Done" -ForegroundColor Green
-            } catch {
-                Write-Error "   Error: $($_.Exception.Message)"
-                exit 1
-            }
-        }
-
-        Write-Host "Cleanup completed." -ForegroundColor Green
-    } else {
-        Write-Host "Cleanup cancelled by user." -ForegroundColor Yellow
-    }
-} else {
-    Write-Host "Cleanup is disabled. Run the script without the -NoCleanup parameter to enable cleanup." -ForegroundColor Yellow
 }
 
 Write-Host "`nScript execution completed successfully." -ForegroundColor Green
