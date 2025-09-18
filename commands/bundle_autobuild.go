@@ -716,7 +716,7 @@ func buildCustomizationSteps(layerProperties []avdimagetypes.V2LayerProperties, 
 
 	preCustomizers, postCustomizer := extractPreAndPostCustomizersFromLayerProperties(layerProperties)
 
-	customizers := make([]armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification, 0, 3+len(preCustomizers)+len(postCustomizer))
+	customizers := make([]armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification, 0, 4+len(preCustomizers)+len(postCustomizer))
 
 	// Extract Bundle
 	customizers = append(customizers, &armvirtualmachineimagebuilder.ImageTemplatePowerShellCustomizer{
@@ -780,12 +780,6 @@ func buildCustomizationSteps(layerProperties []avdimagetypes.V2LayerProperties, 
 				`if (!$?) {Write-Error "The bundle execution failed"; exit 5}`,
 				`Write-Host Exiting the bundle directory`,
 				`Pop-Location`,
-				`Write-Host "Removing bundle directory and archive"`,
-				fmt.Sprintf(`Remove-Item -Path "%s", "%s" -Recurse`, imageBundleZipFilepath, imageBundleFilepath),
-				`Write-Host "Adjusting deprovisioning script"`,
-				// based on: https://raw.githubusercontent.com/Azure/RDS-Templates/master/CustomImageTemplateScripts/CustomImageTemplateScripts_2024-03-27/AdminSysPrep.ps1
-				`((Get-Content -path C:\\DeprovisioningScript.ps1 -Raw) -replace 'Sysprep.exe /oobe /generalize /quiet /quit','Sysprep.exe /oobe /generalize /quit /mode:vm' ) | Set-Content -Path C:\\DeprovisioningScript.ps1`,
-				`Write-Host "Ready for sysprep"`,
 			),
 			Name:        to.Ptr("BundleExecution"),
 			RunAsSystem: to.Ptr(true),
@@ -799,6 +793,22 @@ func buildCustomizationSteps(layerProperties []avdimagetypes.V2LayerProperties, 
 
 	// Post customizers
 	customizers = append(customizers, postCustomizer...)
+
+	// Remove bundle
+	customizers = append(customizers, &armvirtualmachineimagebuilder.ImageTemplatePowerShellCustomizer{
+		Type:        to.Ptr("PowerShell"),
+		Name:        to.Ptr("BundleCleanup"),
+		RunAsSystem: to.Ptr(true),
+		RunElevated: to.Ptr(true),
+		Inline: to.SliceOfPtrs(
+			`Write-Host "Removing bundle directory and archive"`,
+			fmt.Sprintf(`Remove-Item -Path "%s", "%s" -Recurse`, imageBundleZipFilepath, imageBundleFilepath),
+			`Write-Host "Adjusting deprovisioning script"`,
+			// based on: https://raw.githubusercontent.com/Azure/RDS-Templates/master/CustomImageTemplateScripts/CustomImageTemplateScripts_2024-03-27/AdminSysPrep.ps1
+			`((Get-Content -path C:\\DeprovisioningScript.ps1 -Raw) -replace 'Sysprep.exe /oobe /generalize /quiet /quit','Sysprep.exe /oobe /generalize /quit /mode:vm' ) | Set-Content -Path C:\\DeprovisioningScript.ps1`,
+			`Write-Host "Ready for sysprep"`,
+		),
+	})
 
 	return customizers
 }
