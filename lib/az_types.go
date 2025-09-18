@@ -1,20 +1,16 @@
 package lib
 
 type AzAccount struct {
-	EnvironmentName  string        `json:"environmentName"`
-	HomeTenantId     string        `json:"homeTenantId"`
-	SubscriptionId   string        `json:"id"`
-	IsDefault        bool          `json:"isDefault"`
-	ManagedByTenants []string      `json:"managedByTenants"`
-	Name             string        `json:"name"`
-	State            string        `json:"state"`
-	TenantId         string        `json:"tenantId"`
-	User             AzAccountUser `json:"user"`
-}
+	SubscriptionId string `json:"id"`
+	Name           string `json:"name"`
+	State          string `json:"state"`
+	TenantId       string `json:"tenantId"`
 
-type AzAccountUser struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
+	// NOTE: There are a some other fields here that we do not parse
+	// and `managedByTenants []string` in particular was giving us problems where we
+	// were runnig into unmarshalling errors because Go was receiving a struct instead of
+	// a string.
+	// Hoever we do not use those, so we opted to nuke them altogether.
 }
 
 type AzImageDefinition struct {
