@@ -7,8 +7,30 @@ on:
 
 jobs:
   build:
-    name: Build and release Go binaries
+    name: Build Go binaries (${{ matrix.goos }}/${{ matrix.goarch }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: windows
+            goarch: amd64
+            outfile: avdcli-windows-amd64.exe
+          - goos: windows
+            goarch: arm64
+            outfile: avdcli-windows-arm64.exe
+          - goos: darwin
+            goarch: amd64
+            outfile: avdcli-macos-amd64
+          - goos: darwin
+            goarch: arm64
+            outfile: avdcli-macos-arm64
+          - goos: linux
+            goarch: amd64
+            outfile: avdcli-linux-amd64
+          - goos: linux
+            goarch: arm64
+            outfile: avdcli-linux-arm64
 
     steps:
       - name: Checkout code
@@ -26,23 +48,28 @@ jobs:
       - name: Output directory
         run: mkdir -p bin
 
-      - name: Windows amd64
-        run: GOOS=windows GOARCH=amd64 go build -ldflags="-X 'github.com/schoolyear/avd-cli/static.Version=${{ env.VERSION }}' -X 'github.com/schoolyear/avd-cli/static.ReleaseFile=avdcli-windows-amd64.exe'" -o bin/avdcli-windows-amd64.exe
+      - name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+        run: |
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+          go build -ldflags="-X 'github.com/schoolyear/avd-cli/static.Version=${{ env.VERSION }}' -X 'github.com/schoolyear/avd-cli/static.ReleaseFile=${{ matrix.outfile }}'" -o bin/${{ matrix.outfile }}
 
-      - name: Windows arm64
-        run: GOOS=windows GOARCH=arm64 go build -ldflags="-X 'github.com/schoolyear/avd-cli/static.Version=${{ env.VERSION }}' -X 'github.com/schoolyear/avd-cli/static.ReleaseFile=avdcli-windows-arm64.exe'" -o bin/avdcli-windows-arm64.exe
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.outfile }}
+          path: bin/${{ matrix.outfile }}
+          if-no-files-found: error
 
-      - name: macOS amd64
-        run: GOOS=darwin GOARCH=amd64 go build -ldflags="-X 'github.com/schoolyear/avd-cli/static.Version=${{ env.VERSION }}' -X 'github.com/schoolyear/avd-cli/static.ReleaseFile=avdcli-macos-amd64'" -o bin/avdcli-macos-amd64
-
-      - name: macOS arm64
-        run: GOOS=darwin GOARCH=arm64 go build -ldflags="-X 'github.com/schoolyear/avd-cli/static.Version=${{ env.VERSION }}' -X 'github.com/schoolyear/avd-cli/static.ReleaseFile=avdcli-macos-arm64'" -o bin/avdcli-macos-arm64
-
-      - name: linux amd64
-        run: GOOS=linux GOARCH=amd64 go build -ldflags="-X 'github.com/schoolyear/avd-cli/static.Version=${{ env.VERSION }}' -X 'github.com/schoolyear/avd-cli/static.ReleaseFile=avdcli-linux-amd64'" -o bin/avdcli-linux-amd64
-
-      - name: linux arm64
-        run: GOOS=linux GOARCH=arm64 go build -ldflags="-X 'github.com/schoolyear/avd-cli/static.Version=${{ env.VERSION }}' -X 'github.com/schoolyear/avd-cli/static.ReleaseFile=avdcli-linux-arm64'" -o bin/avdcli-linux-arm64
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: bin
+          merge-multiple: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
