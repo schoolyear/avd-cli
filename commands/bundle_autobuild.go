@@ -758,6 +758,10 @@ func buildCustomizationSteps(layerProperties []avdimagetypes.V2LayerProperties, 
 			`}`,
 			`Write-Host "Extracting bundle archive"`,
 			fmt.Sprintf(`Expand-Archive -LiteralPath '%s' -DestinationPath '%s'`, imageBundleZipFilepath, imageBundleFilepath),
+			// sometimes it seems to take a while before Windows releases the folders, making a consecutive step fail
+			`Write-Host "Starting sleep for extraction image bundle"`,
+			`Start-Sleep -Seconds 45`,
+			`Write-Host "Sleep ended."`,
 		),
 	})
 
