@@ -3,6 +3,7 @@ package schema
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/virtualmachineimagebuilder/armvirtualmachineimagebuilder"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
@@ -70,7 +71,7 @@ func HardcodedBuildSteps(sha256Checksum string) (pre BuildSteps, post BuildSteps
 			{V: &armvirtualmachineimagebuilder.ImageTemplatePowerShellCustomizer{
 				Type: to.Ptr("PowerShell"),
 				Inline: to.SliceOfPtrs(`Expand-Archive -LiteralPath "C:\imagebuild_resources.zip" -DestinationPath "C:\imagebuild_resources"`,
-					// sometimes it seems to take a while before Windows releases the folders, making a consectuive step fail
+					// sometimes it seems to take a while before Windows releases the folders, making a consecutive step fail
 					`Write-Host "Starting sleep for extraction imagebuild resources"`,
 					`Start-Sleep -Seconds 180`,
 					`Write-Host "Sleep ended."`,
