@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/fatih/color"
 	"io"
 	"io/fs"
 	"os"
@@ -18,6 +17,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/fatih/color"
 	"github.com/friendsofgo/errors"
 	"github.com/go-resty/resty/v2"
 	"github.com/schollz/progressbar/v3"
@@ -158,6 +158,8 @@ var BundleLayersCommand = &cli.Command{
 				return errors.Wrap(err, "failed to write bundle properties file")
 			}
 		}
+
+		color.HiGreen("Successfully created bundle!")
 
 		return nil
 	},
