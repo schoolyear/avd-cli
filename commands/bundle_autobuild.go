@@ -129,7 +129,7 @@ var BundleAutoDeployCommand = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:     "template-location",
-			Usage:    "Location to create the template in",
+			Usage:    "Azure location to create the image building template in",
 			Required: true,
 		},
 		&cli.PathFlag{
