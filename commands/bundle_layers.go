@@ -92,7 +92,7 @@ var BundleLayersCommand = &cli.Command{
 			Action: func(c *cli.Context, s string) error {
 				_, ok := v2_default_layers.BaseLayers[s]
 				if !ok {
-					return fmt.Errorf("configured base layer not found: %s. available: %+v", s, v2_default_layers.BaseLayerShortnames)
+					return fmt.Errorf("configured base layer not found: %s. available: %+v", s, strings.Join(v2_default_layers.BaseLayerShortnames, ", "))
 				}
 				return nil
 			},

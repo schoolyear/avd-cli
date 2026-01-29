@@ -11,18 +11,19 @@ import (
 //go:embed win10_22h2/*
 var Win1022h2 embed.FS
 
-////go:embed win11/*
-//var Win11 embed.FS
+//go:embed win11_24h2_beta/*
+var Win1124h2Beta embed.FS
 
 const (
-	Win1022h2Name = "win10_22h2"
+	Win1022h2Name     = "win10-22h2"
+	Win1124h2BetaName = "win11-24h2-beta"
 )
 
 const DefaultBaseLayerName = Win1022h2Name
 
 var BaseLayers = map[string]BaseLayer{
 	Win1022h2Name: {
-		Path: Win1022h2Name,
+		Path: "win10_22h2",
 		FS:   Win1022h2,
 		Warning: ztype.NewOptional(BaseLayerWarning{
 			Header: "Deprecation Notice",
@@ -31,10 +32,10 @@ This mean you cannot build new images using Windows 10 and support is not availa
 On March 15 2026, avdcli will default to Windows 11.`,
 		}),
 	},
-	//"win11": {
-	//	Path: "win11",
-	//	FS:   Win11,
-	//},
+	Win1124h2BetaName: {
+		Path: "win11_24h2_beta",
+		FS:   Win1124h2Beta,
+	},
 }
 
 type BaseLayer struct {
