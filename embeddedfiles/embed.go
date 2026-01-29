@@ -18,8 +18,3 @@ const V2ImageTemplateBasePath = "v2_image_template"
 var V2ExecuteScript []byte
 
 const V2ExecuteScriptFilename = "execute.ps1"
-
-//go:embed v2_default_layer/*
-var V2DefaultLayer embed.FS
-
-const V2DefaultLayerBasePath = "v2_default_layer"

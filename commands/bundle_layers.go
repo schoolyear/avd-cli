@@ -22,7 +22,9 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/schollz/progressbar/v3"
 	"github.com/schoolyear/avd-cli/embeddedfiles"
+	"github.com/schoolyear/avd-cli/embeddedfiles/v2_default_layers"
 	"github.com/schoolyear/avd-cli/lib"
+	"github.com/schoolyear/avd-cli/lib/lib_github"
 	"github.com/schoolyear/avd-cli/schema"
 	"github.com/schoolyear/avd-cli/static"
 	avdimagetypes "github.com/schoolyear/avd-image-types"
@@ -79,6 +81,22 @@ var BundleLayersCommand = &cli.Command{
 			Name:  "no-keyring-cache",
 			Usage: "Set if you do not want to store tokens in your local keyring for later use",
 		},
+		&cli.StringFlag{
+			Name:  "layer-base-image",
+			Usage: "Name of the layer that decides which base image to use. If multiple layers define a layer, you will be prompted if this parameter is not set.",
+		},
+		&cli.StringFlag{
+			Name:  "base-layer",
+			Usage: fmt.Sprintf("Set the base layer that will be put in the bundle. Available: %+v", strings.Join(v2_default_layers.BaseLayerShortnames, ", ")),
+			Value: v2_default_layers.DefaultBaseLayerName,
+			Action: func(c *cli.Context, s string) error {
+				_, ok := v2_default_layers.BaseLayers[s]
+				if !ok {
+					return fmt.Errorf("configured base layer not found: %s. available: %+v", s, v2_default_layers.BaseLayerShortnames)
+				}
+				return nil
+			},
+		},
 	},
 	Action: func(c *cli.Context) error {
 		layerPaths := c.StringSlice("layer")
@@ -89,6 +107,10 @@ var BundleLayersCommand = &cli.Command{
 		communityCachePath := c.Path("community-cache")
 		ignoreKeyring := c.Bool("ignore-keyring")
 		noKeyringCache := c.Bool("no-keyring-cache")
+		layerBaseImage := c.String("layer-base-image")
+		baseLayerShortname := c.String("base-layer")
+
+		baseLayer := v2_default_layers.BaseLayers[baseLayerShortname]
 
 		// resolve ~ for community cache folder
 		if strings.HasPrefix(communityCachePath, "~") {
@@ -108,14 +130,14 @@ var BundleLayersCommand = &cli.Command{
 
 		var githubToken string
 		if hasCommunityLayers {
-			token, err := lib.GithubDeviceFlow(client, static.GithubAppClientId, !ignoreKeyring, !noKeyringCache, "To download community layers, you must authenticate with GitHub")
+			token, err := lib_github.GithubDeviceFlow(client, static.GithubAppClientId, !ignoreKeyring, !noKeyringCache, "To download community layers, you must authenticate with GitHub")
 			if err != nil {
 				return errors.Wrap(err, "failed to authenticate with GitHub")
 			}
 			githubToken = token
 		}
 
-		layersToBundle, err := resolveLayersToBundle(client, parsedLayerPaths, communityCachePath, githubToken)
+		layersToBundle, err := resolveLayersToBundle(client, baseLayer, parsedLayerPaths, communityCachePath, githubToken)
 		if err != nil {
 			return errors.Wrap(err, "failed to resolve layers to bundle")
 		}
@@ -127,36 +149,57 @@ var BundleLayersCommand = &cli.Command{
 			return errors.Wrap(err, "failed to load and validate layers")
 		}
 
+		layerProperties := make([]avdimagetypes.V2LayerProperties, len(layers))
+		for i, layer := range layers {
+			layerProperties[i] = *layer.properties
+		}
+
+		fmt.Println("")
+		baseImage, err := selectBaseImage(layerProperties, layerBaseImage, noninteractive, true)
+		if err != nil {
+			return errors.Wrap(err, "failed to select base image")
+		}
+
 		fmt.Println()
 		resolvedParameters, err := resolveLayerParameters(layers, parameterFile, noninteractive)
 		if err != nil {
 			return errors.Wrap(err, "failed to resolve parameters")
 		}
 
-		fmt.Println("")
 		buildParameters := avdimagetypes.V2BuildParameters{
 			Version: avdimagetypes.V2BuildParametersVersionV2,
 			Layers:  resolvedParameters,
 		}
-		if err := copyLayersIntoBundle(layers, buildParameters, bundleOutput); err != nil {
-			return errors.Wrap(err, "failed to copy layers into the bundle file")
+		bundle := avdimagetypes.V2BundleProperties{
+			Version:         avdimagetypes.V2BundlePropertiesVersionV2,
+			CliVersion:      static.Version,
+			Layers:          layerProperties,
+			BaseImage:       baseImage,
+			BuildParameters: resolvedParameters,
 		}
 
 		fmt.Println("")
-		showBaseImage(layers)
+		if err := createBundleFile(layers, buildParameters, bundle, bundleOutput); err != nil {
+			return errors.Wrap(err, "failed to copy layers into the bundle file")
+		}
 
 		fmt.Println()
 
-		if bundleProperties == "" {
-			fmt.Println("Not creating the bundle properties file. Set -bundle-properties (-p) to write it to disk.")
-		} else {
-			layerProperties := make([]avdimagetypes.V2LayerProperties, len(layers))
-			for i, layer := range layers {
-				layerProperties[i] = *layer.properties
-			}
-			if err := writeBundleProperties(layerProperties, resolvedParameters, bundleProperties); err != nil {
+		if bundleProperties != "" {
+			color.Yellow("Notice: --bundle-properties is deprecated and will be removed in a future release.")
+			if err := writeBundleProperties(bundle, bundleProperties); err != nil {
 				return errors.Wrap(err, "failed to write bundle properties file")
 			}
+			fmt.Println()
+		}
+
+		if warning, ok := baseLayer.Warning.Get(); ok {
+			headerLength := len(warning.Header) + 2
+			segment := "============="
+			color.Yellow("%s %s %s", segment, warning.Header, segment)
+			color.Yellow(strings.TrimSpace(warning.Message))
+			color.Yellow("%s%s%s", segment, strings.Repeat("=", headerLength), segment)
+			fmt.Println()
 		}
 
 		color.HiGreen("Successfully created bundle!")
@@ -204,13 +247,19 @@ func parseLayerPaths(layerPaths []string) (layers []parsedLayerPath, hasCommunit
 	return layers, hasCommunityLayers
 }
 
-func resolveLayersToBundle(client *resty.Client, parsedLayerPaths []parsedLayerPath, communityCachePath string, githubToken string) ([]layerToBundle, error) {
+func resolveLayersToBundle(
+	client *resty.Client,
+	baseLayer v2_default_layers.BaseLayer,
+	parsedLayerPaths []parsedLayerPath,
+	communityCachePath string,
+	githubToken string,
+) ([]layerToBundle, error) {
 	layersToBundle := make([]layerToBundle, 0, len(parsedLayerPaths)+1)
 
 	layersToBundle = append(layersToBundle, layerToBundle{
 		originalPathName: "default layer (built-in)",
-		path:             embeddedfiles.V2DefaultLayerBasePath,
-		fs:               embeddedfiles.V2DefaultLayer,
+		path:             baseLayer.Path,
+		fs:               baseLayer.FS,
 	})
 
 	fmt.Println("Resolving layers to bundle:")
@@ -256,7 +305,7 @@ func resolveLayersToBundle(client *resty.Client, parsedLayerPaths []parsedLayerP
 
 func downloadLayerFromGithub(client *resty.Client, layer communityLayerPath, cachePath, githubToken string) (path string, err error) {
 	// find layer tree sha
-	items, err := lib.GithubListContents(client, githubToken, static.GithubImageCommunityOwner, static.GithubImageCommunityRepo, static.GithubImageCommunityLayerPath, &layer.ref)
+	items, err := lib_github.GithubListContents(client, githubToken, static.GithubImageCommunityOwner, static.GithubImageCommunityRepo, static.GithubImageCommunityLayerPath, &layer.ref)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to list available community layers from Github")
 	}
@@ -272,7 +321,7 @@ func downloadLayerFromGithub(client *resty.Client, layer communityLayerPath, cac
 		return "", errors.Errorf("%s not found in the community (ref:%s)", layer.name, layer.ref)
 	}
 
-	layerTree, err := lib.GithubListTree(client, githubToken, static.GithubImageCommunityOwner, static.GithubImageCommunityRepo, treeSha, true)
+	layerTree, err := lib_github.GithubListTree(client, githubToken, static.GithubImageCommunityOwner, static.GithubImageCommunityRepo, treeSha, true)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to list files in community layer")
 	}
@@ -463,7 +512,9 @@ func validateLayers(layersToBundle []layerToBundle) ([]validatedLayer, error) {
 
 		layers = append(layers, *layer)
 
-		fmt.Println()
+		if len(layersToBundle)-1 != i {
+			fmt.Println()
+		}
 	}
 
 	if allValid {
@@ -637,42 +688,76 @@ func getPrefilledParameter(prefilledParams map[string]map[string]avdimagetypes.B
 	return &param
 }
 
-var defaultBaseImage = &avdimagetypes.V2LayerPropertiesBaseImage{
-	PlatformImage: &avdimagetypes.PlatformImage{
-		Type:      avdimagetypes.PlatformImageTypePlatformImage,
-		Publisher: "microsoftwindowsdesktop",
-		Offer:     "windows-10",
-		Sku:       "win10-22h2-avd-g2",
-		Version:   "latest",
-	},
-}
-
-func showBaseImage(layers []validatedLayer) {
-	// find layers with base image definition
-	var layerIdsWithBaseImageDefinition []int
+func selectBaseImage(layers []avdimagetypes.V2LayerProperties, preselectedLayerName string, noninteractive bool, ignoreBaseLayerOnSimpleConflict bool) (*avdimagetypes.V2BaseImage, error) {
+	baseImages := make(map[string]*avdimagetypes.V2BaseImage, len(layers))
+	var layerIdxsWithBaseImage []int
 	for i, layer := range layers {
-		if layer.properties.BaseImage != nil {
-			layerIdsWithBaseImageDefinition = append(layerIdsWithBaseImageDefinition, i)
+		baseImages[layer.Name] = layer.BaseImage
+		if layer.BaseImage != nil {
+			layerIdxsWithBaseImage = append(layerIdxsWithBaseImage, i)
 		}
 	}
 
-	switch len(layerIdsWithBaseImageDefinition) {
-	case 0:
-		fmt.Printf("No layer explicitly defines a base image, so we recommending building the image using this base image: \n    %s\n", baseImageToString(defaultBaseImage))
-	case 1:
-		layer := layers[layerIdsWithBaseImageDefinition[0]]
-		fmt.Printf("The layer %s defines the following base-image: \n    %s\n", layer.properties.Name, baseImageToString(layer.properties.BaseImage))
-	default:
-		fmt.Println("Multiple layers define a base image")
-		for _, layerId := range layerIdsWithBaseImageDefinition {
-			layer := layers[layerId]
-			fmt.Printf("    - Layer %s\n: %s", layer.properties.Name, baseImageToString(layer.properties.BaseImage))
+	if preselectedLayerName != "" {
+		baseImage, found := baseImages[preselectedLayerName]
+		if !found {
+			return nil, fmt.Errorf("preselected layer %s does not exist", preselectedLayerName)
 		}
-		fmt.Println("You have to decide which one to use")
+
+		if baseImage == nil {
+			return nil, fmt.Errorf("selected layer %s does not have a base image configured", preselectedLayerName)
+		}
+
+		fmt.Printf("Using the base image from layer %s: \n    %s\n", preselectedLayerName, baseImageToString(baseImage))
+
+		return baseImage, nil
+	}
+
+	switch {
+	case len(layerIdxsWithBaseImage) == 0:
+		return nil, errors.New("no layer explicitly defines a base image")
+	case len(layerIdxsWithBaseImage) == 1:
+		layer := layers[layerIdxsWithBaseImage[0]]
+		fmt.Printf("Layer %s defines the base image that will be used: \n    %s\n", layer.Name, baseImageToString(layer.BaseImage))
+		return layer.BaseImage, nil
+	case len(layerIdxsWithBaseImage) == 2 && layerIdxsWithBaseImage[0] == 0 && ignoreBaseLayerOnSimpleConflict:
+		// if there is only a single non-base layer that defines a base image, just pick that one
+		layer := layers[layerIdxsWithBaseImage[1]]
+		fmt.Printf("Layer %s defines the base image that will be used, because it is the only non-base layer that specifies one:\n    %s\n", layer.Name, baseImageToString(layer.BaseImage))
+		return layer.BaseImage, nil
+	default:
+		if noninteractive {
+			return nil, errors.New("multiple layers define a base image, but running in noninteractive mode")
+		}
+
+		fmt.Println("Multiple layers define a base image")
+		color.Cyan("Tip: Use the --layer-base-image flag to select one non-interactively")
+
+		// Find the longest layer name for alignment
+		layerWithMaxName := slices.MaxFunc(layerIdxsWithBaseImage, func(a, b int) int {
+			return len(layers[a].Name) - len(layers[b].Name)
+		})
+		maxNameLength := len(layers[layerWithMaxName].Name)
+
+		options := make([]string, len(layerIdxsWithBaseImage))
+		for i, layerIdx := range layerIdxsWithBaseImage {
+			layer := layers[layerIdx]
+			options[i] = fmt.Sprintf("%-*s : %s", maxNameLength, layer.Name, baseImageToString(layer.BaseImage))
+		}
+
+		defaultIdx := len(layerIdxsWithBaseImage) - 1
+		idx, err := lib.PromptEnum(color.YellowString("Select the base image to use"), options, "    ", &defaultIdx)
+		if err != nil {
+			return nil, err
+		}
+
+		layer := layers[layerIdxsWithBaseImage[idx]]
+		fmt.Printf("Layer %s selected: \n%s\n", layer.Name, baseImageToString(layer.BaseImage))
+		return layer.BaseImage, nil
 	}
 }
 
-func baseImageToString(image *avdimagetypes.V2LayerPropertiesBaseImage) string {
+func baseImageToString(image *avdimagetypes.V2BaseImage) string {
 	switch {
 	case image.PlatformImage != nil:
 		return fmt.Sprintf("Platform Image: %s/%s/%s:%s",
@@ -689,7 +774,7 @@ func baseImageToString(image *avdimagetypes.V2LayerPropertiesBaseImage) string {
 	}
 }
 
-func copyLayersIntoBundle(layers []validatedLayer, buildParams avdimagetypes.V2BuildParameters, targetPath string) error {
+func createBundleFile(layers []validatedLayer, buildParams avdimagetypes.V2BuildParameters, bundleProperties avdimagetypes.V2BundleProperties, targetPath string) error {
 	fmt.Println("Creating the bundle file:")
 
 	bundleFile, err := os.Create(targetPath)
@@ -723,6 +808,21 @@ func copyLayersIntoBundle(layers []validatedLayer, buildParams avdimagetypes.V2B
 	}
 	if _, err := buildParamsFile.Write(buildParamsData); err != nil {
 		return errors.Wrap(err, "failed to write the build parameters file to the bundle")
+	}
+	fmt.Printf("[DONE]\n")
+
+	fmt.Printf("    - Adding %s...", schema.V2BundlePropertiesFilename)
+	bundlePropertiesData, err := json.MarshalIndent(bundleProperties, "", "    ")
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal bundle properties to JSON")
+	}
+
+	bundlePropertiesFile, err := zipWriter.Create(schema.V2BundlePropertiesFilename)
+	if err != nil {
+		return errors.Wrap(err, "failed to create the bundle properties file in the bundle")
+	}
+	if _, err := bundlePropertiesFile.Write(bundlePropertiesData); err != nil {
+		return errors.Wrap(err, "failed to write the bundle properties file to the bundle")
 	}
 	fmt.Printf("[DONE]\n")
 
@@ -766,6 +866,7 @@ func copyLayerToBundle(zipFile *zip.Writer, layerName string, sourceFS fs.FS, so
 		if err != nil {
 			return err
 		}
+		// TODO: double check the separators in the zip, because bundles generated on Windows have backslashes
 		h.Name = filepath.Join(layerName, name) // here we add the name of the directory as a prefix
 		if d.IsDir() {
 			h.Name += "/"
@@ -788,15 +889,8 @@ func copyLayerToBundle(zipFile *zip.Writer, layerName string, sourceFS fs.FS, so
 	})
 }
 
-func writeBundleProperties(layers []avdimagetypes.V2LayerProperties, buildParameters map[string]map[string]avdimagetypes.BuildParameterValue, path string) error {
+func writeBundleProperties(bundleProperties avdimagetypes.V2BundleProperties, path string) error {
 	fmt.Printf("Creating the bundle properties file...")
-
-	bundle := avdimagetypes.V2BundleProperties{
-		Version:         avdimagetypes.V2BundlePropertiesVersionV2,
-		CliVersion:      static.Version,
-		Layers:          layers,
-		BuildParameters: buildParameters,
-	}
 
 	propFile, err := os.Create(path)
 	if err != nil {
@@ -806,7 +900,7 @@ func writeBundleProperties(layers []avdimagetypes.V2LayerProperties, buildParame
 
 	encoder := json.NewEncoder(propFile)
 	encoder.SetIndent("", "    ")
-	if err := encoder.Encode(bundle); err != nil {
+	if err := encoder.Encode(bundleProperties); err != nil {
 		return errors.Wrap(err, "failed to write to file")
 	}
 	fmt.Printf("[DONE]: %s\n", path)

@@ -1,12 +1,13 @@
-package lib
+package lib_github
 
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
+
 	"github.com/buger/jsonparser"
 	"github.com/friendsofgo/errors"
 	"github.com/go-resty/resty/v2"
-	"net/url"
 )
 
 var ErrGithubNotFound = errors.New("github contents not found")

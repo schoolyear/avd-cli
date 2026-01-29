@@ -51,10 +51,6 @@ var BundleAutoDeployCommand = &cli.Command{
 			Aliases:  []string{"g"},
 		},
 		&cli.StringFlag{
-			Name:  "layer-base-image",
-			Usage: "Name of the layer that decides the base layer. You will be prompted when not set and multiple layers define a base image",
-		},
-		&cli.StringFlag{
 			Name:     "image-gallery",
 			Usage:    "Name of the shared image gallery",
 			Required: true,
@@ -158,7 +154,6 @@ var BundleAutoDeployCommand = &cli.Command{
 		bundlePath := c.Path("bundle")
 		subscriptionId := c.String("subscription-id")
 		resourceGroup := c.String("resource-group")
-		layerBaseImageName := c.String("layer-base-image")
 		imageGallery := c.String("image-gallery")
 		imageDefinition := c.String("image-definition")
 		storageAccount := c.String("storage-account")
@@ -178,7 +173,7 @@ var BundleAutoDeployCommand = &cli.Command{
 		skipDeployment := c.Bool("skip-deployment")
 		bundlePropertiesPath := c.Path("bundle-properties")
 
-		layers, buildParameters, err := validateBundle(bundlePath)
+		layers, _, bundleProperties, err := validateBundle(bundlePath)
 		if err != nil {
 			return errors.Wrap(err, "bundle validation error")
 		}
@@ -212,13 +207,6 @@ var BundleAutoDeployCommand = &cli.Command{
 
 		fmt.Println()
 
-		baseImage, err := selectBaseImage(layers, layerBaseImageName)
-		if err != nil {
-			return errors.Wrap(err, "Failed to select a base image to build from")
-		}
-
-		fmt.Println()
-
 		// list image definitions in the gallery
 		imageDefinitions, err := lib.ExecuteAsParseAsJSON[[]lib.AzImageDefinition](c.Context, "az", "sig", "image-definition", "list", "-r", imageGallery, "-g", resourceGroup, "--subscription", subscriptionId)
 		if err != nil {
@@ -248,13 +236,13 @@ var BundleAutoDeployCommand = &cli.Command{
 
 		fmt.Println()
 
-		if err := writeBundleProperties(layers, buildParameters.Layers, bundlePropertiesPath); err != nil {
-			return errors.Wrap(err, "failed to write bundle properties file")
+		if err := writeBundleProperties(*bundleProperties, bundlePropertiesPath); err != nil {
+			return err
 		}
 
 		fmt.Printf("Uploading bundle properties to Azure Storage Account %s/%s...\n", storageAccount, blobContainer)
 		bundlePropsBlobName := fmt.Sprintf("bundle-%s-%s.json", imageDefinition, nowFormatted)
-		if err := uploadBundle(c.Context, storageAccount, blobContainer, bundlePropertiesPath, bundlePropsBlobName); err != nil {
+		if err := uploadIfNotExist(c.Context, storageAccount, blobContainer, bundlePropertiesPath, bundlePropsBlobName); err != nil {
 			return errors.Wrap(err, "failed to upload bundle properties to Azure Storage Account")
 		}
 		bundlePropsBlobUri := fmt.Sprintf("https://%s.blob.core.windows.net/%s/%s", storageAccount, blobContainer, bundlePropsBlobName)
@@ -271,7 +259,7 @@ var BundleAutoDeployCommand = &cli.Command{
 
 		fmt.Printf("Uploading bundle archive to Azure Storage Account %s/%s...\n", storageAccount, blobContainer)
 		bundleArchiveBlobName := fmt.Sprintf("bundle-%s.zip", hashHex)
-		if err := uploadBundle(c.Context, storageAccount, blobContainer, bundlePath, bundleArchiveBlobName); err != nil {
+		if err := uploadIfNotExist(c.Context, storageAccount, blobContainer, bundlePath, bundleArchiveBlobName); err != nil {
 			return errors.Wrap(err, "failed to upload bundle archive to Azure Storage Account")
 		}
 
@@ -293,7 +281,7 @@ var BundleAutoDeployCommand = &cli.Command{
 			fmt.Sprintf("https://%s.blob.core.windows.net/%s/%s", storageAccount, blobContainer, bundleArchiveBlobName),
 			builderVmSize,
 			int32(builderDiskSize),
-			baseImage,
+			bundleProperties.BaseImage,
 			fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/galleries/%s/images/%s", subscriptionId, resourceGroup, imageGallery, imageDefinition),
 			int32(replicationCount),
 			optimizeImage,
@@ -354,13 +342,13 @@ var BundleAutoDeployCommand = &cli.Command{
 	},
 }
 
-func validateBundle(bundlePath string) ([]avdimagetypes.V2LayerProperties, *avdimagetypes.V2BuildParameters, error) {
+func validateBundle(bundlePath string) (layers []*avdimagetypes.V2LayerProperties, buildParameters *avdimagetypes.V2BuildParameters, bundleProperties *avdimagetypes.V2BundleProperties, err error) {
 	archive, err := zip.OpenReader(bundlePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil, fmt.Errorf("bundle file does not exist: %s", bundlePath)
+			return nil, nil, nil, fmt.Errorf("bundle file does not exist: %s", bundlePath)
 		}
-		return nil, nil, errors.Wrap(err, "failed to check if bundle file exists")
+		return nil, nil, nil, errors.Wrap(err, "failed to check if bundle file exists")
 	}
 	defer archive.Close()
 
@@ -386,35 +374,57 @@ func validateBundle(bundlePath string) ([]avdimagetypes.V2LayerProperties, *avdi
 		validationErrors = append(validationErrors, fmt.Errorf("bundle does not contain the expected 'execute' script (%s)", embeddedfiles.V2ExecuteScriptFilename))
 	}
 
-	var buildParameters *avdimagetypes.V2BuildParameters
 	if zipFile, ok := filenames[schema.V2BuildParametersFilename]; !ok {
 		validationErrors = append(validationErrors, fmt.Errorf("bundle does not contain the expected build parameters files (%s)", schema.V2BuildParametersFilename))
 	} else {
 		file, err := zipFile.Open()
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "failed to open build parameters file")
+			return nil, nil, nil, errors.Wrap(err, "failed to open build parameters file")
 		}
 		defer file.Close()
 
 		data, err := io.ReadAll(file)
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "failed to read build parameters file")
+			return nil, nil, nil, errors.Wrap(err, "failed to read build parameters file")
 		}
 
 		if err := lib.ValidateAVDImageType(avdimagetypes.V2BuildParametersDefinition, data); err != nil {
-			return nil, nil, errors.Wrap(err, "invalid build parameters file")
+			return nil, nil, nil, errors.Wrap(err, "invalid build parameters file")
 		}
 
 		if err := json.Unmarshal(data, &buildParameters); err != nil {
-			return nil, nil, errors.Wrap(err, "failed to parse build parameters file")
+			return nil, nil, nil, errors.Wrap(err, "failed to parse build parameters file")
 		}
 	}
 
-	layers := make([]avdimagetypes.V2LayerProperties, 0, len(layerNames))
+	if zipFile, ok := filenames[schema.V2BundlePropertiesFilename]; !ok {
+		validationErrors = append(validationErrors, fmt.Errorf("bundle does not contain the expected bundle properties file (%s)", schema.V2BundlePropertiesFilename))
+	} else {
+		file, err := zipFile.Open()
+		if err != nil {
+			return nil, nil, nil, errors.Wrap(err, "failed to open bundle properties file")
+		}
+		defer file.Close()
+
+		data, err := io.ReadAll(file)
+		if err != nil {
+			return nil, nil, nil, errors.Wrap(err, "failed to read bundle properties file")
+		}
+
+		if err := lib.ValidateAVDImageType(avdimagetypes.V2BundlePropertiesDefinition, data); err != nil {
+			return nil, nil, nil, errors.Wrap(err, "invalid bundle properties file")
+		}
+
+		if err := json.Unmarshal(data, &bundleProperties); err != nil {
+			return nil, nil, nil, errors.Wrap(err, "failed to parse bundle properties file")
+		}
+	}
+
+	layers = make([]*avdimagetypes.V2LayerProperties, 0, len(layerNames))
 	for layerName := range layerNames {
 		layerFs, err := fs.Sub(archive, layerName)
 		if err != nil {
-			return nil, nil, errors.Wrapf(err, "failed to open layer %s", layerName)
+			return nil, nil, nil, errors.Wrapf(err, "failed to open layer %s", layerName)
 		}
 		propsBytes, _, err := lib.ReadJSONOrJSON5AsJSON(layerFs, layerPropertiesFilename)
 		if err != nil {
@@ -426,71 +436,19 @@ func validateBundle(bundlePath string) ([]avdimagetypes.V2LayerProperties, *avdi
 			} else {
 				var properties avdimagetypes.V2LayerProperties
 				if err := json.Unmarshal(propsBytes, &properties); err != nil {
-					return nil, nil, errors.Wrapf(err, "failed to parse layer %s", layerName)
+					return nil, nil, nil, errors.Wrapf(err, "failed to parse layer %s", layerName)
 				}
 
-				layers = append(layers, properties)
+				layers = append(layers, &properties)
 			}
 		}
 	}
 
 	if len(validationErrors) > 0 {
-		return nil, nil, stdErr.Join(validationErrors...)
+		return nil, nil, nil, stdErr.Join(validationErrors...)
 	}
 
-	return layers, buildParameters, nil
-}
-
-func selectBaseImage(layers []avdimagetypes.V2LayerProperties, preselectedLayerName string) (*avdimagetypes.V2LayerPropertiesBaseImage, error) {
-	baseImages := make(map[string]*avdimagetypes.V2LayerPropertiesBaseImage, len(layers))
-	var layerIdxsWithBaseImage []int
-	for i, layer := range layers {
-		baseImages[layer.Name] = layer.BaseImage
-		if layer.BaseImage != nil {
-			layerIdxsWithBaseImage = append(layerIdxsWithBaseImage, i)
-		}
-	}
-
-	if preselectedLayerName != "" {
-		baseImage, found := baseImages[preselectedLayerName]
-		if !found {
-			return nil, fmt.Errorf("preselected layer %s does not exist", preselectedLayerName)
-		}
-
-		if baseImage == nil {
-			return nil, fmt.Errorf("selected layer %s does not have a base image configured", preselectedLayerName)
-		}
-
-		fmt.Printf("Using the base image from layer %s: \n    %s\n", preselectedLayerName, baseImageToString(defaultBaseImage))
-
-		return baseImage, nil
-	}
-
-	switch len(layerIdxsWithBaseImage) {
-	case 0:
-		fmt.Printf("No layer explicitly defines a base image, so the default base image will be used: \n    %s\n", baseImageToString(defaultBaseImage))
-		return defaultBaseImage, nil
-	case 1:
-		layer := layers[layerIdxsWithBaseImage[0]]
-		fmt.Printf("The layer %s defines the base image that will be used: \n    %s\n", layer.Name, baseImageToString(layer.BaseImage))
-		return layer.BaseImage, nil
-	default:
-		fmt.Println("Multiple layers define a base image")
-
-		options := make([]string, len(layerIdxsWithBaseImage))
-		for i, layerIdx := range layerIdxsWithBaseImage {
-			layer := layers[layerIdx]
-			options[i] = fmt.Sprintf("    - %d: Layer %s\n: %s", i+1, layer.Name, baseImageToString(layer.BaseImage))
-		}
-		idx, err := lib.PromptEnum("Select the base image to use", options, "", nil)
-		if err != nil {
-			return nil, err
-		}
-
-		layer := layers[layerIdxsWithBaseImage[idx]]
-		fmt.Printf("Layer %s selected: \n%s\n", layer.Name, baseImageToString(layer.BaseImage))
-		return layer.BaseImage, nil
-	}
+	return layers, buildParameters, bundleProperties, nil
 }
 
 func selectImageDefinition(existingImageDefinitions []lib.AzImageDefinition, tenantId, subscriptionId, rgName, galleryName string) (name string, err error) {
@@ -538,7 +496,7 @@ func calcBundleShaAndSize(filepath string) ([]byte, error) {
 	return sha.Sum(nil), nil
 }
 
-func uploadBundle(ctx context.Context, storageAccount, blobContainer, bundlePath, bundleFileName string) error {
+func uploadIfNotExist(ctx context.Context, storageAccount, blobContainer, bundlePath, bundleFileName string) error {
 	type existsOut struct {
 		Exists bool `json:"exists"`
 	}
@@ -587,7 +545,7 @@ func buildImageTemplate(
 	builderVmSize string,
 	builderDiskSize int32,
 
-	baseImage *avdimagetypes.V2LayerPropertiesBaseImage,
+	baseImage *avdimagetypes.V2BaseImage,
 
 	targetGalleryImageId string,
 	replicateCount int32,
@@ -597,7 +555,7 @@ func buildImageTemplate(
 
 	bundlePropertiesUri string,
 
-	layerProperties []avdimagetypes.V2LayerProperties,
+	layerProperties []*avdimagetypes.V2LayerProperties,
 ) *armvirtualmachineimagebuilder.ImageTemplate {
 	return &armvirtualmachineimagebuilder.ImageTemplate{
 		Identity: &armvirtualmachineimagebuilder.ImageTemplateIdentity{
@@ -649,7 +607,7 @@ func buildImageTemplate(
 	}
 }
 
-func baseImageSourceToTemplateSource(baseImage *avdimagetypes.V2LayerPropertiesBaseImage) armvirtualmachineimagebuilder.ImageTemplateSourceClassification {
+func baseImageSourceToTemplateSource(baseImage *avdimagetypes.V2BaseImage) armvirtualmachineimagebuilder.ImageTemplateSourceClassification {
 	switch {
 	case baseImage.ManagedImage != nil:
 		return &armvirtualmachineimagebuilder.ImageTemplateManagedImageSource{
@@ -710,7 +668,7 @@ func buildTemplateDistributor(galleryImageId string, targetRegions []string, rep
 	}
 }
 
-func buildCustomizationSteps(layerProperties []avdimagetypes.V2LayerProperties, managedIdentityId, bundleSourceUri string) []armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification {
+func buildCustomizationSteps(layerProperties []*avdimagetypes.V2LayerProperties, managedIdentityId, bundleSourceUri string) []armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification {
 	const imageBundleZipFilepath = `C:\image_bundle.zip`
 	const imageBundleFilepath = `C:\image_bundle`
 
@@ -817,14 +775,14 @@ func buildCustomizationSteps(layerProperties []avdimagetypes.V2LayerProperties, 
 	return customizers
 }
 
-func extractPreAndPostCustomizersFromLayerProperties(layerProperties []avdimagetypes.V2LayerProperties) ([]armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification, []armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification) {
+func extractPreAndPostCustomizersFromLayerProperties(layerProperties []*avdimagetypes.V2LayerProperties) ([]armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification, []armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification) {
 	var (
 		pre  []armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification
 		post []armvirtualmachineimagebuilder.ImageTemplateCustomizerClassification
 	)
 
 	for _, lp := range layerProperties {
-		if lp.Customizers == nil {
+		if lp == nil || lp.Customizers == nil {
 			continue
 		}
 

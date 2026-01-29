@@ -23,6 +23,7 @@ import (
 	"github.com/inhies/go-bytesize"
 	"github.com/schollz/progressbar/v3"
 	"github.com/schoolyear/avd-cli/lib"
+	"github.com/schoolyear/avd-cli/lib/lib_github"
 	"github.com/schoolyear/avd-cli/schema"
 	"github.com/urfave/cli/v2"
 )
@@ -253,7 +254,7 @@ func loadDeploymentTemplate(templatePath string) ([]byte, error) {
 		err                    error
 	)
 	if strings.HasPrefix(templatePath, "http://") || strings.HasPrefix(templatePath, "https://") {
-		deploymentTemplateJson, err = lib.DownloadFile(context.Background(), templatePath)
+		deploymentTemplateJson, err = lib_github.DownloadFile(context.Background(), templatePath)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to download file")
 		}

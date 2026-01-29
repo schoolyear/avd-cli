@@ -1,14 +1,15 @@
-package lib
+package lib_github
 
 import (
 	"encoding/json"
 	"fmt"
+	"time"
+
 	"github.com/fatih/color"
 	"github.com/friendsofgo/errors"
 	"github.com/go-resty/resty/v2"
 	"github.com/schoolyear/avd-cli/static"
 	"github.com/zalando/go-keyring"
-	"time"
 )
 
 func getGithubKeyringKeyName(clientId string) string {

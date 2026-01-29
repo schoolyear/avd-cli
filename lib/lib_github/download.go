@@ -1,12 +1,13 @@
-package lib
+package lib_github
 
 import (
 	"context"
 	"fmt"
-	"github.com/schoolyear/avd-cli/static"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/schoolyear/avd-cli/static"
 
 	"github.com/friendsofgo/errors"
 	"github.com/go-resty/resty/v2"

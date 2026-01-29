@@ -13,6 +13,7 @@ import (
 	"github.com/friendsofgo/errors"
 	"github.com/schollz/progressbar/v3"
 	"github.com/schoolyear/avd-cli/lib"
+	"github.com/schoolyear/avd-cli/lib/lib_github"
 	"github.com/schoolyear/avd-cli/static"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/mod/semver"
@@ -42,7 +43,7 @@ var UpdateCommand = &cli.Command{
 		}
 
 		fmt.Println("Checking latest version...")
-		latestVersion, latestDownloadURL, err := lib.FetchLatestVersion(c.Context)
+		latestVersion, latestDownloadURL, err := lib_github.FetchLatestVersion(c.Context)
 		if err != nil {
 			return errors.Wrap(err, "failed to fetch latest version")
 		}

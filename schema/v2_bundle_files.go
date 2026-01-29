@@ -8,5 +8,6 @@ const (
 )
 
 const (
-	V2BuildParametersFilename = "build_parameters.json"
+	V2BuildParametersFilename  = "build_parameters.json"
+	V2BundlePropertiesFilename = "bundle_properties.json"
 )

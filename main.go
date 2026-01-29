@@ -3,20 +3,21 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/fatih/color"
-	"github.com/schoolyear/avd-cli/commands"
-	"github.com/schoolyear/avd-cli/lib"
-	"github.com/schoolyear/avd-cli/static"
-	"github.com/urfave/cli/v2"
 	"os"
 	"sync/atomic"
 	"time"
+
+	"github.com/fatih/color"
+	"github.com/schoolyear/avd-cli/commands"
+	"github.com/schoolyear/avd-cli/lib/lib_github"
+	"github.com/schoolyear/avd-cli/static"
+	"github.com/urfave/cli/v2"
 )
 
 func main() {
 	backgroundVersionCheckResult := make(chan string)
 	go func() {
-		version, _, err := lib.FetchLatestVersion(context.Background())
+		version, _, err := lib_github.FetchLatestVersion(context.Background())
 		if err == nil {
 			backgroundVersionCheckResult <- version
 		}

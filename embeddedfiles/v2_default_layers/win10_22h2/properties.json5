@@ -1,5 +1,5 @@
 {
-  version: "v2",
+  version: "v2.1",
   name: "com.schoolyear.avd",
   description: "The default built-in Schoolyear layer, included in every bundle",
   author: {
@@ -78,6 +78,13 @@
       // - `*.sfx.ms` we do not want Onedrive to start updating during an exam
       // - `graph.microsoft.com:443` provides access to online files in Office. Sadly, this also means that we don't show profile pictures in Office.
     ],
+  },
+  base_image: {
+    type: "PlatformImage",
+    publisher: "microsoftwindowsdesktop",
+    offer: "windows-10",
+    sku: "win10-22h2-avd-g2",
+    version: "latest"
   },
   build_parameters: {
     environment: {
