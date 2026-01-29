@@ -160,6 +160,28 @@ var BundleLayersCommand = &cli.Command{
 			return errors.Wrap(err, "failed to select base image")
 		}
 
+		fmt.Println("")
+		if err := baseLayer.BaseImageChecker.ValidateBaseImage(baseImage); err != nil {
+			var supportedBaseLayers []string
+			for name, layer := range v2_default_layers.BaseLayers {
+				if layer.BaseImageChecker.ValidateBaseImage(baseImage) == nil {
+					supportedBaseLayers = append(supportedBaseLayers, name)
+				}
+			}
+
+			color.Red("The selected base layer does not support this base image: %s.", err.Error())
+			if len(supportedBaseLayers) > 0 {
+				color.Red("Use the --base-layer flag to select one does support it:")
+				for _, name := range supportedBaseLayers {
+					color.Red("  --base-layer %s", name)
+				}
+			} else {
+				color.Red("None of the available base layers support this base image. You must pick another base image.")
+			}
+
+			return errors.New("base layer and base image mismatch")
+		}
+
 		fmt.Println()
 		resolvedParameters, err := resolveLayerParameters(layers, parameterFile, noninteractive)
 		if err != nil {
