@@ -169,17 +169,26 @@ var BundleLayersCommand = &cli.Command{
 				}
 			}
 
-			color.Red("The selected base layer does not support this base image: %s.", err.Error())
+			color.Yellow("The selected base layer does not support this base image: %s.", err.Error())
 			if len(supportedBaseLayers) > 0 {
-				color.Red("Use the --base-layer flag to select one does support it:")
+				color.Yellow("Use the --base-layer flag to select one does:")
 				for _, name := range supportedBaseLayers {
-					color.Red("  --base-layer %s", name)
+					color.Yellow("  --base-layer %s", name)
 				}
 			} else {
-				color.Red("None of the available base layers support this base image. You must pick another base image.")
+				color.Yellow("None of the available base layers support this base image.")
 			}
 
-			return errors.New("base layer and base image mismatch")
+			if !noninteractive {
+				res, err := lib.PromptUserInput(color.YellowString("Are you sure you want to continue (y/n)? "), nil)
+				if err != nil {
+					return err
+				}
+
+				if res != "y" && res != "Y" {
+					return errors.New("not continuing")
+				}
+			}
 		}
 
 		fmt.Println()
