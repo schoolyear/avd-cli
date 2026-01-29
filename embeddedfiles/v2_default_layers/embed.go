@@ -14,12 +14,12 @@ import (
 //go:embed win10_22h2/*
 var Win1022h2 embed.FS
 
-//go:embed win11_24h2_beta/*
-var Win1124h2Beta embed.FS
+//go:embed win11_24h2_preview/*
+var Win1124h2Preview embed.FS
 
 const (
 	Win1022h2Name     = "win10-22h2"
-	Win1124h2BetaName = "win11-24h2-beta"
+	Win1124h2BetaName = "win11-24h2-preview"
 )
 
 const DefaultBaseLayerName = Win1022h2Name
@@ -37,8 +37,8 @@ On March 15 2026, avdcli will default to Windows 11.`,
 		BaseImageChecker: PlatformSkuStringContainsChecker{SkuSubstring: "win10"},
 	},
 	Win1124h2BetaName: {
-		Path:             "win11_24h2_beta",
-		FS:               Win1124h2Beta,
+		Path:             "win11_24h2_preview",
+		FS:               Win1124h2Preview,
 		BaseImageChecker: PlatformSkuStringContainsChecker{SkuSubstring: "win11"},
 	},
 }
