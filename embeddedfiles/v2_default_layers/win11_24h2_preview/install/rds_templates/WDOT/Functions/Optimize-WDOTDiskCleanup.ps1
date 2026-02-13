@@ -15,9 +15,10 @@ function Optimize-WDOTDiskCleanup
     {
         try
         {
-            Write-EventLog -EventId 90 -Message "Removing .tmp, .etl, .evtx, thumbcache*.db, *.log files not in use" -LogName 'WDOT' -Source 'DiskCleanup' -EntryType Information
-            Write-Verbose "Removing .tmp, .etl, .evtx, thumbcache*.db, *.log files not in use"
-            Get-ChildItem -Path c:\ -Include *.tmp, *.dmp, *.etl, *.evtx, thumbcache*.db, *.log -File -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -ErrorAction SilentlyContinue
+            #Sometimes fails, commented out
+            #Write-EventLog -EventId 90 -Message "Removing .tmp, .etl, .evtx, thumbcache*.db, *.log files not in use" -LogName 'WDOT' -Source 'DiskCleanup' -EntryType Information
+            #Write-Verbose "Removing .tmp, .etl, .evtx, thumbcache*.db, *.log files not in use"
+            #Get-ChildItem -Path c:\ -Include *.tmp, *.dmp, *.etl, *.evtx, thumbcache*.db, *.log -File -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -ErrorAction SilentlyContinue
 
             # Delete "RetailDemo" content (if it exits)
             Write-EventLog -EventId 90 -Message "Removing Retail Demo content (if it exists)" -LogName 'WDOT' -Source 'DiskCleanup' -EntryType Information
@@ -47,9 +48,10 @@ function Optimize-WDOTDiskCleanup
             Clear-RecycleBin -Force -ErrorAction SilentlyContinue
 
             # Clear out BranchCache cache
-            Write-EventLog -EventId 90 -Message "Clearing BranchCache cache" -LogName 'WDOT' -Source 'DiskCleanup' -EntryType Information
-            Write-Verbose "Clearing BranchCache cache"
-            Clear-BCCache -Force -ErrorAction SilentlyContinue
+            #Sometimes fails, commented out
+            #Write-EventLog -EventId 90 -Message "Clearing BranchCache cache" -LogName 'WDOT' -Source 'DiskCleanup' -EntryType Information
+            #Write-Verbose "Clearing BranchCache cache"
+            #Clear-BCCache -Force -ErrorAction SilentlyContinue
         }
         catch
         {

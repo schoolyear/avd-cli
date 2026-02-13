@@ -225,27 +225,7 @@ PROCESS {
     }
 
     # Legal stuff
-    $EULA = Get-Content (Join-Path $PSScriptRoot "EULA.txt")
-    if (-not $AcceptEULA) {
-        $Title = "Accept EULA"
-        $Options = @(
-            New-Object System.Management.Automation.Host.ChoiceDescription "&Yes"
-            New-Object System.Management.Automation.Host.ChoiceDescription "&No"
-        )
-        $Response = $host.UI.PromptForChoice($Title, $EULA, $Options, 0)
-        if ($Response -eq 0) {
-            Write-EventLog -LogName 'WDOT' -Source 'WDOT' -EntryType Information -EventId 1 -Message "EULA Accepted"
-        } else {
-            Write-EventLog -LogName 'WDOT' -Source 'WDOT' -EntryType Warning -EventId 1 -Message "EULA Declined, exiting!"
-            Set-Location $CurrentLocation
-            $ScriptRunTime = (New-TimeSpan -Start $StartTime -End (Get-Date))
-            Write-EventLog -LogName 'WDOT' -Source 'WDOT' -EntryType Information -EventId 1 -Message "WDOT Total Run Time: $($ScriptRunTime.Hours) Hours $($ScriptRunTime.Minutes) Minutes $($ScriptRunTime.Seconds) Seconds"
-            Write-Host "`n`nThank you from the Windows Desktop Optimization Team" -ForegroundColor Cyan
-            continue
-        }
-    } else {
-        Write-EventLog -LogName 'WDOT' -Source 'WDOT' -EntryType Information -EventId 1 -Message "EULA Accepted by Parameter"
-    }
+    Write-EventLog -LogName 'WDOT' -Source 'WDOT' -EntryType Information -EventId 1 -Message "EULA Accepted by Parameter"
 
     #Get current OS stats
     $OSVersion = Get-WDOTOperatingSystemInfo

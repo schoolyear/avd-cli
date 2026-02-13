@@ -22,6 +22,11 @@ Included the readme for future reference.
 - Corrected the log messages for the registry edits (Optimize-WDOTLocalPolicySettings.ps1#L47). They wrongly stated errors for expected scenarios.
 - Set it to Verbose to make troubleshooting easier.
 
+- Commented out a few lines, because they sometimes break, or fail anyway:
+  - `Get-ChildItem 'C:\*' -Recurse -Force -EA SilentlyContinue -Include 'OneDrive','OneDrive.*' | Remove-Item -Force -Recurse -EA SilentlyContinue`
+  - `Get-ChildItem -Path c:\ -Include *.tmp, *.dmp, *.etl, *.evtx, thumbcache*.db, *.log -File -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -ErrorAction SilentlyContinue`
+  - `Clear-BCCache -Force -ErrorAction SilentlyContinue`
+
 ## Configuration comments
 
   - GetStarted can't be removed, as it breaks snipping tool. Getstarted the AppxPackage is the Tips app, they have the same name, that is removed.
