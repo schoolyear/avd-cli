@@ -25,7 +25,7 @@ To add a layer:
    5. Gather feedback. During iteration, you can update this layer folder.
 2. Availability phase
    1. Duplicate the layer folder and the registration in `embed.go` but without the `-preview` suffix in the name.
-   2. Release the cli and Inform avd admins about the general availability of the layer.
+   2. Release the cli and inform avd admins about the general availability of the layer.
    3. Gather feedback.
 3. Default phase
    1. Add a warning to the current default to notify admins about the upcoming change in default. Mention the flag to pin the current version and a specific date.
