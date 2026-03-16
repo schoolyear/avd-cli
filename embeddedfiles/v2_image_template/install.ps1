@@ -32,12 +32,3 @@ $ProgressPreference = 'SilentlyContinue'
 ## NOTE: It is recommended to configure any IP address or port as a build parameter. These things tend to change **and** allows you to share your layers with others
 #
 # New-NetFirewallRule -DisplayName 'allow-ip' -Direction Outbound -Action Allow -RemoteAddress '1.2.3.4' -Protocol TCP -RemotePort 8080 -Profile Any -ErrorAction Stop
-
-## EXAMPLE: WHITELIST HOSTNAME
-## NOTE: Due to limitations in Azure, only TCP and UDP are supported
-## NOTE: It is recommended to configure any IP address or port as a build parameter. These things tend to change **and** allows you to share your layers with others
-## NOTE: Only use hostname whitelisting when you are sure no other resources are hosted on IP(s) to which this hostname resolves.
-##       The actual IP addresses of this hostname will be whitelisted. Any resource hosted on these servers will be accessible to students. Not only the hostname you configure here
-#
-# New-NetFirewallDynamicKeywordAddress -Id "{any-unique-guid}" -Keyword "example.com" -AutoResolve $true
-# New-NetFirewallRule -DisplayName "Allow All Outbound to example.com" -Direction Outbound -Action Allow -RemoteDynamicKeywordAddresses (Get-NetFirewallDynamicKeywordAddress -Keyword "example.com").ID
