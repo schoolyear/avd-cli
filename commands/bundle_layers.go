@@ -171,7 +171,7 @@ var BundleLayersCommand = &cli.Command{
 
 			color.Yellow("The selected base layer does not support this base image: %s.", err.Error())
 			if len(supportedBaseLayers) > 0 {
-				color.Yellow("Use the --base-layer flag to select one does:")
+				color.Yellow("Use the --base-layer flag to select one that does:")
 				for _, name := range supportedBaseLayers {
 					color.Yellow("  --base-layer %s", name)
 				}

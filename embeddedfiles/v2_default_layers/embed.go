@@ -26,7 +26,7 @@ const (
 	Win1124h2Name        = "win11-24h2"
 )
 
-const DefaultBaseLayerName = Win1022h2Name
+const DefaultBaseLayerName = Win1124h2Name
 
 var BaseLayers = map[string]BaseLayer{
 	Win1022h2Name: {
@@ -35,8 +35,7 @@ var BaseLayers = map[string]BaseLayer{
 		Warning: ztype.NewOptional(BaseLayerWarning{
 			Header: "Deprecation Notice",
 			Message: `Windows 10 will be deprecated by Azure in April 2026.
-This mean you cannot build new images using Windows 10 and support is not available.
-On March 15 2026, avdcli will default to Windows 11.`,
+This means you cannot build new images using Windows 10 and support is not available.`,
 		}),
 		BaseImageChecker: PlatformSkuStringContainsChecker{SkuSubstring: "win10"},
 	},
