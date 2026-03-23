@@ -1,85 +1,160 @@
-﻿function Optimize-WDOTDefaultUserSettings
-{
+function Optimize-WDOTDefaultUserSettings {
     [CmdletBinding()]
 
     Param
     (
-
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [ValidatePattern('^[^\\/:*?"<>|]+$')]
+        [string]$MountedHiveName = 'WDOT_TEMP'
     )
 
-    Begin
-    {
+    Begin {
         Write-Verbose "Entering Function '$($MyInvocation.MyCommand.Name)'"
-    }
-    Process
-    {
-        $DefaultUserSettingsFilePath = ".\DefaultUserSettings.json"
-        If (Test-Path $DefaultUserSettingsFilePath)
-        {
-            Write-EventLog -EventId 40 -Message "Set Default User Settings" -LogName 'WDOT' -Source 'WDOT' -EntryType Information
-            Write-Host "[Windows Optimize] Set Default User Settings" -ForegroundColor Cyan
-            $UserSettings = (Get-Content $DefaultUserSettingsFilePath | ConvertFrom-Json).Where( { $_.OptimizationState -eq "Apply" })
-            If ($UserSettings.Count -gt 0)
-            {
-                Write-EventLog -EventId 40 -Message "Processing Default User Settings (Registry Keys)" -LogName 'WDOT' -Source 'DefaultUserSettings' -EntryType Information
-                Write-Verbose "Processing Default User Settings (Registry Keys)"
-                $null = Start-Process reg -ArgumentList "LOAD HKLM\WDOT_TEMP C:\Users\Default\NTUSER.DAT" -PassThru -Wait
-                
-                Foreach ($Item in $UserSettings)
-                {
-                    If ($Item.PropertyType -eq "BINARY")
-                    {
-                        $Value = [byte[]]($Item.PropertyValue.Split(","))
-                    }
-                    Else
-                    {
-                        $Value = $Item.PropertyValue
-                    }
 
-                    If (Test-Path -Path ("{0}" -f $Item.HivePath))
-                    {
-                        Write-EventLog -EventId 40 -Message "Found $($Item.HivePath) - $($Item.KeyName)" -LogName 'WDOT' -Source 'DefaultUserSettings' -EntryType Information        
-                        Write-Verbose "Found $($Item.HivePath) - $($Item.KeyName)"
-                        If (Get-ItemProperty -Path ("{0}" -f $Item.HivePath) -ErrorAction SilentlyContinue)
-                        {
-                            Write-EventLog -EventId 40 -Message "Set $($Item.HivePath) - $Value" -LogName 'WDOT' -Source 'DefaultUserSettings' -EntryType Information
-                            Set-ItemProperty -Path ("{0}" -f $Item.HivePath) -Name $Item.KeyName -Value $Value -Type $Item.PropertyType -Force 
-                        }
-                        Else
-                        {
-                            Write-EventLog -EventId 40 -Message "New $($Item.HivePath) Name $($Item.KeyName) PropertyType $($Item.PropertyType) Value $Value" -LogName 'WDOT' -Source 'DefaultUserSettings' -EntryType Information
-                            New-ItemProperty -Path ("{0}" -f $Item.HivePath) -Name $Item.KeyName -PropertyType $Item.PropertyType -Value $Value -Force | Out-Null
-                        }
-                    }
-                    Else
-                    {
-                        Write-EventLog -EventId 40 -Message "Registry Path not found $($Item.HivePath)" -LogName 'WDOT' -Source 'DefaultUserSettings' -EntryType Information
-                        Write-EventLog -EventId 40 -Message "Creating new Registry Key $($Item.HivePath)" -LogName 'WDOT' -Source 'DefaultUserSettings' -EntryType Information
-                        $newKey = New-Item -Path ("{0}" -f $Item.HivePath) -Force
-                        If (Test-Path -Path $newKey.PSPath)
-                        {
-                            New-ItemProperty -Path ("{0}" -f $Item.HivePath) -Name $Item.KeyName -PropertyType $Item.PropertyType -Value $Value -Force | Out-Null
-                        }
-                        Else
-                        {
-                            Write-EventLog -EventId 140 -Message "Failed to create new Registry Key" -LogName 'WDOT' -Source 'DefaultUserSettings' -EntryType Error
-                        } 
-                    }
-                }
-                $null = Start-Process reg -ArgumentList "UNLOAD HKLM\WDOT_TEMP" -PassThru -Wait
-            }
-            Else
-            {
-                Write-EventLog -EventId 40 -Message "No Default User Settings to set" -LogName 'WDOT' -Source 'DefaultUserSettings' -EntryType Warning
+        function ConvertTo-RegistryValueKind {
+            param(
+                [Parameter(Mandatory = $true)]
+                [string]$PropertyType
+            )
+
+            switch ($PropertyType.ToUpperInvariant()) {
+                'BINARY' { return [Microsoft.Win32.RegistryValueKind]::Binary }
+                'DWORD' { return [Microsoft.Win32.RegistryValueKind]::DWord }
+                'EXPANDSTRING' { return [Microsoft.Win32.RegistryValueKind]::ExpandString }
+                'MULTISTRING' { return [Microsoft.Win32.RegistryValueKind]::MultiString }
+                'QWORD' { return [Microsoft.Win32.RegistryValueKind]::QWord }
+                'STRING' { return [Microsoft.Win32.RegistryValueKind]::String }
+                default { throw "Unsupported registry property type: $PropertyType" }
             }
         }
-        Else
-        {
-            Write-EventLog -EventId 40 -Message "File not found: $DefaultUserSettingsFilePath" -LogName 'WDOT' -Source 'DefaultUserSettings' -EntryType Warning
-        }    
+
+        function ConvertTo-RegistryValueData {
+            param(
+                [Parameter(Mandatory = $true)]
+                [string]$PropertyType,
+
+                [Parameter()]
+                $PropertyValue
+            )
+
+            switch ($PropertyType.ToUpperInvariant()) {
+                'BINARY' {
+                    return , ([byte[]]@(
+                            foreach ($Token in @($PropertyValue -split ',')) {
+                                $TrimmedToken = [string]$Token
+                                if ([string]::IsNullOrWhiteSpace($TrimmedToken)) {
+                                    continue
+                                }
+
+                                $TrimmedToken = $TrimmedToken.Trim()
+                                if ($TrimmedToken.StartsWith('0x', [System.StringComparison]::OrdinalIgnoreCase)) {
+                                    [System.Convert]::ToByte($TrimmedToken.Substring(2), 16)
+                                }
+                                else {
+                                    [System.Convert]::ToByte($TrimmedToken, 10)
+                                }
+                            }
+                        ))
+                }
+                'DWORD' { return [int]$PropertyValue }
+                'MULTISTRING' { return [string[]]$PropertyValue }
+                'QWORD' { return [long]$PropertyValue }
+                default { return [string]$PropertyValue }
+            }
+        }
+
+        function ConvertTo-RegistrySubKeyPath {
+            param(
+                [Parameter(Mandatory = $true)]
+                [string]$HivePath
+            )
+
+            if ($HivePath -notmatch '^[A-Za-z]+:\\[^\\]+\\') {
+                throw "Unsupported default user hive path: $HivePath"
+            }
+
+            return ($HivePath -replace '^[A-Za-z]+:\\[^\\]+\\', '')
+        }
     }
-    End
-    {
-        Write-Verbose "Exiting Function '$($MyInvocation.MyCommand.Name)'"
+    Process {
+        $DefaultUserSettingsFilePath = ".\DefaultUserSettings.json"
+        $MountedHiveRegistryPath = 'HKLM\{0}' -f $MountedHiveName
+        $MountedHiveProviderPath = 'HKLM:\{0}' -f $MountedHiveName
+        If (Test-Path $DefaultUserSettingsFilePath) {
+            Write-Host "[Windows Optimize] Set Default User Settings" -ForegroundColor Cyan
+            $UserSettings = (Get-Content $DefaultUserSettingsFilePath | ConvertFrom-Json).Where( { $_.OptimizationState -eq "Apply" })
+            If ($UserSettings.Count -gt 0) {
+                Write-Host "Processing Default User Settings (Registry Keys)"
+                $HiveLoaded = $false
+                $LocalMachineRoot = $null
+                $DefaultUserRoot = $null
+
+                try {
+                    & reg.exe load $MountedHiveRegistryPath 'C:\Users\Default\NTUSER.DAT' | Out-Null
+                    if ($LASTEXITCODE -ne 0) {
+                        throw "Failed to load default user hive into $MountedHiveRegistryPath"
+                    }
+
+                    $HiveLoaded = $true
+                    Write-Host "Successfully loaded $MountedHiveRegistryPath"
+
+                    $LocalMachineRoot = [Microsoft.Win32.RegistryKey]::OpenBaseKey(
+                        [Microsoft.Win32.RegistryHive]::LocalMachine,
+                        [Microsoft.Win32.RegistryView]::Default
+                    )
+                    $DefaultUserRoot = $LocalMachineRoot.OpenSubKey($MountedHiveName, $true)
+                    if (-not $DefaultUserRoot) {
+                        throw "Failed to open mounted default user hive $MountedHiveRegistryPath"
+                    }
+
+                    Foreach ($Item in $UserSettings) {
+                        $SubKeyPath = ConvertTo-RegistrySubKeyPath -HivePath $Item.HivePath
+                        $ResolvedHivePath = '{0}\{1}' -f $MountedHiveProviderPath, $SubKeyPath
+                        $RegistryValueKind = ConvertTo-RegistryValueKind -PropertyType $Item.PropertyType
+                        $Value = ConvertTo-RegistryValueData -PropertyType $Item.PropertyType -PropertyValue $Item.PropertyValue
+                        $RegistryKey = $null
+
+                        try {
+                            $RegistryKey = $DefaultUserRoot.CreateSubKey($SubKeyPath)
+
+                            if (-not $RegistryKey) {
+                                Write-EventLog -EventId 140 -Message "Failed to create new Registry Key" -LogName 'WDOT' -Source 'DefaultUserSettings' -EntryType Error
+                                continue
+                            }
+
+                            Write-Host "Setting $ResolvedHivePath - $($Item.KeyName) to $Value ($($Item.PropertyType))"
+                            $RegistryKey.SetValue($Item.KeyName, $Value, $RegistryValueKind)
+                            Write-Host "Set $ResolvedHivePath - $Value"
+                        }
+                        finally {
+                            if ($RegistryKey) { $RegistryKey.Dispose() }
+                        }
+                    }
+                }
+                finally {
+                    if ($DefaultUserRoot) { $DefaultUserRoot.Dispose() }
+                    if ($LocalMachineRoot) { $LocalMachineRoot.Dispose() }
+
+                    if ($HiveLoaded) {
+                        & reg.exe unload $MountedHiveRegistryPath | Out-Null
+                        if ($LASTEXITCODE -ne 0) {
+                            throw "Failed to unload default user hive from $MountedHiveRegistryPath"
+                        }
+
+                        Write-Host "Successfully unloaded $MountedHiveRegistryPath"
+                    }
+                }
+            }
+            Else {
+                Write-Host "No Default User Settings to set"
+            }
+        }
+        Else {
+            Write-Host "Default User Settings file not found at path: $DefaultUserSettingsFilePath"
+        }
+    }
+    End {
+        Write-Host "Exiting Function '$($MyInvocation.MyCommand.Name)'"
     }
 }

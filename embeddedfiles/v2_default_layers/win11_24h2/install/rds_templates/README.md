@@ -7,10 +7,6 @@ Based on: https://github.com/Azure/RDS-Templates/blob/master/CustomImageTemplate
 (may be non-exhaustive)
 
 - DisableAutoUpdates: the scripts didn't have a colon after `HKLM`/`HKCU`. Unclear how these scripts ever worked.
-- WindowsOptimization: commented out a few lines, because they cause Access-Denied and fail silently otherwise anyway
-  - `Get-ChildItem 'C:\*' -Recurse -Force -EA SilentlyContinue -Include 'OneDrive','OneDrive.*' | Remove-Item -Force -Recurse -EA SilentlyContinue`
-  - `Get-ChildItem -Path c:\ -Include *.tmp, *.dmp, *.etl, *.evtx, thumbcache*.db, *.log -File -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -ErrorAction SilentlyContinue`
-  - `Clear-BCCache -Force -ErrorAction SilentlyContinue`
 
 # WDOT
 
@@ -19,7 +15,9 @@ Included the readme for future reference.
 
 ## Modifications
 
-- Corrected the log messages for the registry edits (Optimize-WDOTLocalPolicySettings.ps1#L47). They wrongly stated errors for expected scenarios.
+- Changed the Registry edits in Optimize-WDOTDefaultUserSettings.ps1 to use .NET a.o.t. Powershell cmdlets & made unloading of the Registry hive critical.
+  The powershell cmdlets that edited the Registry, sometimes prevented the hive from being unloaded, hence the change.
+- Corrected the log messages for the registry edits (Optimize-WDOTLocalPolicySettings.ps1). They wrongly stated errors for expected scenarios.
 - Set it to Verbose to make troubleshooting easier.
 
 - Commented out a few lines, because they sometimes break, or fail anyway:

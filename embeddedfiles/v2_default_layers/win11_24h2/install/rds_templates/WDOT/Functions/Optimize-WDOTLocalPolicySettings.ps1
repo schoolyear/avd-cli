@@ -43,7 +43,7 @@ function Optimize-WDOTLocalPolicySettings
                             }
                             Else
                             {
-                                Write-EventLog -EventId 80 -Message "Error: Creating Name $($Key.RegItemValueName), Value $($Key.RegItemValue) and Path $($Key.RegItemPath)" -LogName 'WDOT' -Source 'LocalPolicy' -EntryType Information
+                                Write-EventLog -EventId 80 -Message "Path not found, creating Name $($Key.RegItemValueName), Value $($Key.RegItemValue) and Path $($Key.RegItemPath)" -LogName 'WDOT' -Source 'LocalPolicy' -EntryType Information
                                 Write-Verbose "Path not found, creating it, Name: $($Key.RegItemValueName), Value $($Key.RegItemValue) and Path $($Key.RegItemPath)"
                                 New-Item -Path $Key.RegItemPath -Force | New-ItemProperty -Name $Key.RegItemValueName -PropertyType $Key.RegItemValueType -Value $Key.RegItemValue -Force | Out-Null
                             }
