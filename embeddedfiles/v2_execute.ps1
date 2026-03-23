@@ -260,7 +260,7 @@ for ($layerIndex = 0; $layerIndex -lt $ValidLayers.Count; $layerIndex++) {
     # Run installation script
     $installScriptPath = Join-Path -Path $layerPath -ChildPath "install.ps1"
     if (Test-Path -Path $installScriptPath) {
-        Write-Host " - Running installation script..."
+        Write-Host " - Running the layer's installation script..."
         Push-Location $layerPath
         try {
             # Check if we have parameters for this layer in the build parameters file
@@ -282,6 +282,35 @@ for ($layerIndex = 0; $layerIndex -lt $ValidLayers.Count; $layerIndex++) {
                     }
                 }
             }
+            # Discover parameters declared in install.ps1
+            $commandInfo = Get-Command $installScriptPath -ErrorAction Stop
+
+            # Extract only mandatory parameters
+            $requiredParams = @(
+                $commandInfo.Parameters.Values |
+                Where-Object {
+                    $_.Attributes |
+                        Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.Mandatory }
+                } |
+                Select-Object -ExpandProperty Name -Unique
+            )
+
+            if ($requiredParams.Count -gt 0) {
+                Write-Host " - Required install.ps1 parameters: $($requiredParams -join ', ')"
+            } else {
+                Write-Host " - install.ps1 declares no mandatory parameters"
+            }
+
+            # Detect missing mandatory parameters
+            $missingRequired = @(
+                $requiredParams | Where-Object { $_ -notin $scriptParams.Keys }
+            )
+
+            if ($missingRequired.Count -gt 0) {
+                throw "install.ps1 for layer '$layerName' is missing required parameters: $($missingRequired -join ', ')"
+            }
+
+            Write-Host " - Required parameter validation passed for layer '$layerName'"
 
             # Execute script with parameters if any
             if ($scriptParams.Count -gt 0) {
