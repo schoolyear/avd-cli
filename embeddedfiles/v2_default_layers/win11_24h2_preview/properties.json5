@@ -1,5 +1,5 @@
 {
-  version: "v2",
+  version: "v2.2",
   name: "com.schoolyear.avd",
   description: "The default built-in Schoolyear layer, included in every bundle",
   author: {
@@ -97,5 +97,10 @@
       ],
       default: "Production"
     }
-  }
+  },
+  backup_config_patterns: [
+    "Documents/**",
+    "Desktop/**",
+    "Downloads/**",
+  ],
 }

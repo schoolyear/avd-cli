@@ -94,7 +94,7 @@ $LayerNames = @{}
 
 Write-Host "`nValidating layers..."
 
-$validLayerVersions = @("v2", "v2.1")
+$validLayerVersions = @("v2", "v2.1", "v2.2")
 
 foreach ($path in $LayerPaths) {
     $validationErrors = @()
@@ -243,6 +243,27 @@ foreach ($dir in @($setupScriptDestDir, $userAdminScriptDestDir, $userScriptDest
     } else {
         Write-Host " - Directory already exists: $dir"
     }
+}
+
+## Collect backup_config_patterns from all layers and write combined backup config
+$allBackupPatterns = @()
+foreach ($layer in $ValidLayers) {
+    if ($layer.Properties.PSObject.Properties['backup_config_patterns'] -and $layer.Properties.backup_config_patterns) {
+        $allBackupPatterns += @($layer.Properties.backup_config_patterns)
+    }
+}
+
+if ($allBackupPatterns.Count -gt 0) {
+    $backupConfigDest = "C:\ProgramData\Schoolyear\backup_config.json"
+    Write-Host "`nInstalling backup config...`n"
+    $backupConfigDestDir = Split-Path -Path $backupConfigDest -Parent
+    if (-not (Test-Path -Path $backupConfigDestDir)) {
+        Write-Host " - Creating directory: $backupConfigDestDir"
+        New-Item -Path $backupConfigDestDir -ItemType Directory -Force | Out-Null
+    }
+    $backupConfigJson = @{ paths = @($allBackupPatterns) } | ConvertTo-Json
+    [System.IO.File]::WriteAllText($backupConfigDest, $backupConfigJson, (New-Object System.Text.UTF8Encoding $false))
+    Write-Host " - Wrote $($allBackupPatterns.Count) pattern(s) to $backupConfigDest" -ForegroundColor Green
 }
 
 ## Execute each layer directory one by one
